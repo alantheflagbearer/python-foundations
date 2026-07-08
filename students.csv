@@ -1,0 +1,6 @@
+name,grade,passed,city,grade_pct,letter,name_upper,high_achiever
+Mutasim,88,True,Brooklyn,0.88,B,MUTASIM,True
+Ali,45,False,Queens,0.45,F,ALI,False
+Sara,95,True,Brooklyn,0.95,A,SARA,True
+John,38,False,Manhattan,0.38,F,JOHN,False
+Priya,77,True,Queens,0.77,C,PRIYA,False

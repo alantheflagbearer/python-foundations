@@ -21,6 +21,16 @@ A daily-practice log following a 52-week (365-day) roadmap from Python fundament
 
 Days 36 onward build a small neural-network library from scratch in NumPy (no framework), extending it week over week — the same `net.forward()` / `net.backward()` core from Day 36 is still what every later script trains against.
 
+## Recent visuals (Days 36–42)
+
+| | |
+|---|---|
+| ![Decision boundaries](decision_boundaries.png) Decision boundaries on toy datasets — Day 36 | ![Optimizer paths](optimizer_paths.png) Optimizer trajectories compared — Day 37 |
+| ![Batch norm stats](batchnorm_stats.png) Batch-norm activation statistics — Day 40 | ![Edge detection](edge_detection.png) Edge-detection kernels — Day 41 |
+| ![Feature maps](feature_maps.png) CNN feature maps — Day 41 | ![Stacking comparison](stacking_comparison.png) Accuracy vs. depth for stacked CNN layers — Day 42 |
+
+Study guides (concept walkthrough + syntax breakdown PDFs) for the most recent days live in [`study-guides/`](study-guides).
+
 ## Featured project: Titanic EDA (Day 13)
 
 Answers one question: what determined who survived the Titanic disaster, and does it hold up across pandas, statistical tests, and raw SQL?

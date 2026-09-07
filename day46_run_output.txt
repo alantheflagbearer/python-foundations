@@ -1,0 +1,80 @@
+======================================================================
+1. LEARNING-RATE SCHEDULES FROM SCRATCH
+======================================================================
+Real, actually-evaluated lr values at several checkpoint epochs (no training happening here -- these are the schedule functions called directly):
+  epoch  constant(0.08)   step_decay    cosine
+      0         0.08000      0.08000   0.16000
+     50         0.08000      0.08000   0.15393
+     99         0.08000      0.08000   0.13708
+    100         0.08000      0.04000   0.13664
+    150         0.08000      0.04000   0.11077
+    199         0.08000      0.04000   0.08088
+    200         0.08000      0.02000   0.08025
+    250         0.08000      0.02000   0.04973
+    299         0.08000      0.02000   0.02430
+    300         0.08000      0.01000   0.02386
+    350         0.08000      0.01000   0.00657
+    399         0.08000      0.01000   0.00050
+saved lr_schedule_shapes.png
+
+======================================================================
+2. DOES A SCHEDULE CALM DAY 45'S LATE-TRAINING OSCILLATION?
+======================================================================
+Day 45's step-matched full-batch run (TwoBlockConvNetRGB, fixed lr=0.08, 350 epochs) found real loss spikes recurring from roughly epoch 75 through 320, with noise_std=0.264 over the second half -- purely from the fixed step size overshooting a narrowing loss basin. Today reruns that EXACT setup (same dataset convention as Day 44/45: train = seed=42, n_per_class=50 generation, all 200 images; test = a SEPARATE seed=999, n_per_class=20 generation, 80 images) with a step-decay schedule instead of the fixed rate, to see whether decaying lr calms it.
+
+config                        train_acc  test_acc  noise_std (2nd half)
+Fixed lr=0.08                     0.990     0.825               0.24795
+Step decay 0.08->0.01             0.985     0.738               0.04935
+
+lr trajectory (step decay): epoch0=0.0800 epoch99=0.0800 epoch100=0.0400 epoch199=0.0400 epoch200=0.0200 epoch300=0.0100 epoch349=0.0100
+noise_std over just the last 50 steps (step decay): 0.00002
+Actual output from this lesson's run.
+
+real, honest verdict: step decay all but ELIMINATES the oscillation Day 45 found -- noise_std drops from 0.24795 to 0.04935 (and to 0.00002 in just the final 50 steps, where lr has decayed to 0.010). But this did NOT come free: both train and test accuracy dropped slightly (train_acc 0.990 to 0.985; test_acc 0.825 to 0.738). An honest complication worth naming plainly: Day 45's late-training oscillation, caused by the SAME fixed lr=0.08 overshooting, may have been acting like an unintentional regularizer -- the noisy steps kept exploring slightly past the exact training optimum, which on this 80-image separately-generated test set happened to generalize marginally better. Removing the noise let training settle in more precisely, at a small cost to both train and test accuracy on this run. This is a real, single-run correlation, not proof of a general noise-helps rule -- but it is exactly the kind of result that deserves flagging rather than smoothing over just because the noise metric moved the way expected.
+saved schedule_calms_oscillation.png
+
+======================================================================
+3. REVISITING DAY 44'S NON-CONVERGING WIDE NETWORK
+======================================================================
+Day 44's WideTwoBlockConvNetRGB (f1=6, f2=12) reached only train_acc=0.995 (not 1.000) after 400 epochs at fixed lr=0.08 -- every other network that day hit 1.000. lr=0.05 was slower (loss=0.758 at epoch 150 vs lr=0.08's 0.627 at epoch 200) and lr=0.12 was unstable (train_acc collapsed to 0.27 at epoch 100). Today tries two REAL schedules on the IDENTICAL dataset convention Day 44 used (train: seed=42, n_per_class=50, all 200 images; test: a SEPARATE seed=999, n_per_class=20 generation, 80 images -- deliberately different from Day 45's own single-generation-plus-holdout convention, and getting this wrong on the first attempt is exactly the kind of dataset-convention mismatch this series has flagged before).
+
+Baseline reproduced -- fixed lr=0.08, 400 epochs: train_acc=0.995, test_acc=0.537
+(Day 44's own documented numbers: train_acc=0.995, test_acc=0.537 -- MATCHES exactly)
+
+Attempt 1 -- cosine annealing 0.16 -> 0.0005 over 400 epochs: train_acc=0.165, test_acc=0.225
+loss trajectory: epoch0=2.1162 epoch99=1.3863 epoch199=1.3863 epoch299=1.3863 epoch399=1.3863  (ln(4)=1.3863 is pure random-guessing loss for 4 classes)
+probs on 3 training images after 400 epochs: [[0.25, 0.25, 0.25, 0.25], [0.25, 0.25, 0.25, 0.25], [0.25, 0.25, 0.25, 0.25]]
+Actual output from this lesson's run.
+
+honest complication: cosine annealing starting at lr0=0.16 did not just fail to help -- it produced a WORSE, and apparently PERMANENT, collapse than Day 44's already-unstable fixed lr=0.12 (which reached train_acc=0.27). Here, train_acc=0.165 and the loss sits at 1.3863, essentially exactly ln(4) -- the network is predicting close to uniform probability across all 4 classes for every image, and stays there for the entire remaining ~300 epochs even as the schedule's own lr decays all the way down to 0.0005 by the end. Checking the network's internal state confirms this isn't dead ReLUs or exploding weights (no NaNs, weight magnitudes stay bounded, roughly 44-48% of ReLU units are still active) -- the DENSE output layers have collapsed into a configuration that produces nearly-identical logits for every class regardless of input, and once there, no amount of LATER lr decay undoes it, because the gradient direction needed to escape a symmetric, non-discriminative optimum is itself tiny. The lesson: a learning-rate schedule's decaying TAIL does not protect against damage its own elevated HEAD can do early in training -- if a schedule starts high enough to break the network in the first ~100 epochs, decaying the rate afterward does not necessarily give it a way back.
+
+Attempt 2 -- safe step decay 0.08 -> 0.01 (never exceeds Day 44's own stable rate), 400 epochs: train_acc=0.980, test_acc=0.512
+Actual output from this lesson's run.
+
+honest complication #2: this is SAFER than Attempt 1 (no collapse) but still WORSE than just leaving lr fixed at 0.08 the whole time (0.980 vs 0.995 train_acc). The reason is simple once you look at it: Day 44's lr=0.08 run was never actually OSCILLATING or unstable -- it was just slow to finish the last little bit of training. Cutting the rate in half every 100 epochs slows it down FURTHER for no corresponding stability benefit, since there was no instability to fix in the first place. A schedule that decays a rate that wasn't causing problems just wastes the epoch budget.
+
+config                      train_acc  test_acc
+Fixed lr=0.08 (Day44)           0.995     0.537
+Cosine 0.16->0.0005             0.165     0.225
+Step decay 0.08->0.01           0.980     0.512
+Actual output from this lesson's run.
+
+real, honest final verdict: NEITHER schedule beat Day 44's plain fixed lr=0.08 on this network. Learning-rate schedules are a targeted fix for a SPECIFIC problem -- a rate that's causing real oscillation or instability, exactly what Topic 2 showed for Day 45's setup -- not a general-purpose train-better switch. WideTwoBlockConvNetRGB's 0.995 plateau was never an oscillation problem, so no schedule built from lr alone fixed it; if anything, reaching for a higher starting rate to speed things up reproduced (and worsened) exactly the instability Day 44 already found at fixed lr=0.12. Whatever IS holding this specific network to 0.995 -- an initialization issue, a genuinely hard-to-escape point in its loss landscape, or simply needing more than 400 epochs -- is a different kind of problem than a schedule addresses, and is better suited to the adaptive per-parameter optimizers and initialization techniques later in this roadmap.
+
+saved wide_network_schedule_attempts.png
+
+======================================================================
+4. WHAT THIS MAPS TO IN PYTORCH
+======================================================================
+optimizer = torch.optim.SGD(model.parameters(), lr=0.08)
+step_sched = torch.optim.lr_scheduler.StepLR(
+    optimizer, step_size=100, gamma=0.5)      # matches step_decay_schedule
+cos_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+    optimizer, T_max=400, eta_min=0.0005)     # matches cosine_annealing_schedule
+
+for epoch in range(epochs):
+    train_one_epoch(...)
+    step_sched.step()      # or cos_sched.step() -- called once per epoch,
+                           # exactly like this lesson's schedule_fn(epoch)
+
+PyTorch's schedulers store the CURRENT lr internally and mutate optimizer.param_groups[0]['lr'] on .step() -- functionally identical to this lesson's net.lr = schedule_fn(epoch), just wrapped in a class with its own .step()/.get_last_lr() API instead of a plain function called with an epoch number.

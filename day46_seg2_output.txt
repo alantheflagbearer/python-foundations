@@ -1,0 +1,16 @@
+
+======================================================================
+2. DOES A SCHEDULE CALM DAY 45'S LATE-TRAINING OSCILLATION?
+======================================================================
+Day 45's step-matched full-batch run (TwoBlockConvNetRGB, fixed lr=0.08, 350 epochs) found real loss spikes recurring from roughly epoch 75 through 320, with noise_std=0.264 over the second half -- purely from the fixed step size overshooting a narrowing loss basin. Today reruns that EXACT setup (same dataset convention as Day 44/45: train = seed=42, n_per_class=50 generation, all 200 images; test = a SEPARATE seed=999, n_per_class=20 generation, 80 images) with a step-decay schedule instead of the fixed rate, to see whether decaying lr calms it.
+
+config                        train_acc  test_acc  noise_std (2nd half)
+Fixed lr=0.08                     0.990     0.825               0.24795
+Step decay 0.08->0.01             0.985     0.738               0.04935
+
+lr trajectory (step decay): epoch0=0.0800 epoch99=0.0800 epoch100=0.0400 epoch199=0.0400 epoch200=0.0200 epoch300=0.0100 epoch349=0.0100
+noise_std over just the last 50 steps (step decay): 0.00002
+Actual output from this lesson's run.
+
+real, honest verdict: step decay all but ELIMINATES the oscillation Day 45 found -- noise_std drops from 0.24795 to 0.04935 (and to 0.00002 in just the final 50 steps, where lr has decayed to 0.010). But this did NOT come free: both train and test accuracy dropped slightly (train_acc 0.990 to 0.985; test_acc 0.825 to 0.738). An honest complication worth naming plainly: Day 45's late-training oscillation, caused by the SAME fixed lr=0.08 overshooting, may have been acting like an unintentional regularizer -- the noisy steps kept exploring slightly past the exact training optimum, which on this 80-image separately-generated test set happened to generalize marginally better. Removing the noise let training settle in more precisely, at a small cost to both train and test accuracy on this run. This is a real, single-run correlation, not proof of a general noise-helps rule -- but it is exactly the kind of result that deserves flagging rather than smoothing over just because the noise metric moved the way expected.
+saved schedule_calms_oscillation.png

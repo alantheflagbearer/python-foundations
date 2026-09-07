@@ -1,0 +1,16 @@
+
+======================================================================
+4. WHAT THIS MAPS TO IN PYTORCH
+======================================================================
+optimizer = torch.optim.SGD(model.parameters(), lr=0.08)
+step_sched = torch.optim.lr_scheduler.StepLR(
+    optimizer, step_size=100, gamma=0.5)      # matches step_decay_schedule
+cos_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+    optimizer, T_max=400, eta_min=0.0005)     # matches cosine_annealing_schedule
+
+for epoch in range(epochs):
+    train_one_epoch(...)
+    step_sched.step()      # or cos_sched.step() -- called once per epoch,
+                           # exactly like this lesson's schedule_fn(epoch)
+
+PyTorch's schedulers store the CURRENT lr internally and mutate optimizer.param_groups[0]['lr'] on .step() -- functionally identical to this lesson's net.lr = schedule_fn(epoch), just wrapped in a class with its own .step()/.get_last_lr() API instead of a plain function called with an epoch number.

@@ -1,0 +1,123 @@
+======================================================================
+1. REAL RGB IMAGE PREPROCESSING
+======================================================================
+china.jpg  raw shape: (427, 640, 3), dtype=uint8
+flower.jpg raw shape: (427, 640, 3), dtype=uint8
+
+resized (PIL, LANCZOS) to: (64, 64, 3) -- CNN-ready spatial size
+
+flower.jpg per-channel mean (R,G,B) before normalization: [55.22 73.57 57.02]
+flower.jpg per-channel std  (R,G,B) before normalization: [88.18 43.32 30.94]
+(for comparison, china.jpg's channels are much closer together: mean [144.7 145.5 140.9], std [73.7 79.5 92.4] -- that is precisely why flower.jpg, not china.jpg, is used to show the effect visually below.)
+
+after per-channel z-score normalization:
+  new mean (should be ~0): [-0.  0.  0.]
+  new std  (should be ~1): [1. 1. 1.]
+this is a REAL computation on REAL pixels -- not illustrative numbers -- confirming per-channel normalization actually zeros the mean and unit-scales the spread, channel by channel, exactly as torchvision.transforms.Normalize does with fixed dataset statistics instead of per-image ones.
+
+visual check -- how different do the two DISPLAYED images actually look? mean abs pixel difference (0-255 scale): 32.16, max: 90.00
+on flower.jpg this is large enough (unlike on china.jpg) to see directly in the two photos side by side -- the green-cast background shifts toward red/magenta once each channel is put on the same scale. The difference panel below still makes the exact pixels that changed most explicit.
+saved real_image_preprocessing.png
+
+on flower.jpg the proof is visible two ways at once: the photo itself changes color balance (green cast shifts toward red), and the histograms collapse from three separate mean/spread values onto the same mean~0, std~1 shape.
+
+======================================================================
+2. REAL DATA AUGMENTATION
+======================================================================
+horizontal flip: mean absolute pixel difference from original = 76.31 (0 would mean the flip did nothing)
+random crop: (64, 64) -> (48, 48) (top=15, left=4)
+brightness jitter (x1.35): 98.0% of pixels changed, mean brightness 143.7 -> 171.3
+saved real_augmentation.png
+all three are REAL array operations on the REAL photo -- np.flip, slicing, and multiply+clip -- exactly what torchvision.transforms.RandomHorizontalFlip / RandomCrop / ColorJitter do under the hood.
+
+======================================================================
+3. FROM TWO BLOCKS TO THREE -- RECEPTIVE FIELD, ONE MORE STAGE
+======================================================================
+one block:    receptive field 4x4 (16 px)  [verified Day 42]
+two blocks:   receptive field 10x10 (100 px)  [verified Day 42]
+three blocks: receptive field 22x22 (484 px)  -- new today
+one more block grew the field of view by 384 pixels (4.84x the two-block area).
+the formula never mentioned channel count -- it only depends on kernel size and stride -- so it should hold whether the input has 1 channel or 3. Verifying that on a genuinely 3-channel input:
+numeric check (3-channel input): 484 pixels react, spanning 22x22 -- matches formula's 22x22, exactly as it did for the 1-channel case in Day 42. Channel count changes how much a unit computes; it does not change how far it can see.
+saved receptive_field_3block.png
+
+======================================================================
+4. THE COLORED JUNCTION DATASET
+======================================================================
+train set: (200, 3, 30, 30) (m, C_in=3, H=30, W=30), class counts [50, 50, 50, 50]
+correlation between R and G channels across all pixels: 0.917 (shared shape signal keeps it high, but it's not 1.0 -- the per-channel noise really does make each channel slightly different, exactly like 0.92 isn't 1.0 for two channels of a real photo either)
+saved colored_junction_dataset.png
+
+======================================================================
+5. BUILDING THE THIRD BLOCK -- A QUICK GRADIENT RE-CHECK
+======================================================================
+ThreeBlockConvNetRGB shapes at img_size=30: {'out1': 28, 'pool1': 14, 'out2': 12, 'pool2': 6, 'out3': 4, 'pool3': 2, 'flat_dim': 36}
+loss at fresh init (4 random images): 2.1268
+gradient check on dWc1 (FIRST block, deepest point in the chain from the loss): numerical=-0.015602  analytical=-0.015606  diff=3.68e-06
+this single check exercises the full backward path: dense2 -> dense1 -> pool3 -> conv3 -> pool2 -> conv2 -> pool1 -> conv1 -- if any handoff between the three blocks were wrong, this number would not match.
+
+======================================================================
+7. POOLING BUDGET -- WHERE A FOURTH BLOCK BREAKS
+======================================================================
+block 1: input 30x30 -> conv(k=3) -> 28x28 -> pool(2x2) -> 14x14
+block 2: input 14x14 -> conv(k=3) -> 12x12 -> pool(2x2) -> 6x6
+block 3: input 6x6 -> conv(k=3) -> 4x4 -> pool(2x2) -> 2x2
+
+after 3 blocks, spatial size is 2x2. trying a 4th conv(k=3): 2 - 3 + 1 = 0 -- NOT A VALID SIZE. this is a real, mechanical failure: a 3x3 kernel cannot slide across a 2x2 input even once with no padding. that is the pooling budget, exactly reached.
+conv2d_forward_mc actually ran and returned shape (1, 12, 0, 0)
+
+the real fix (used throughout modern CNNs, not implemented here to keep today's from-scratch scope honest): 'same' padding, which pads the input before each conv so spatial size only shrinks at pooling steps, not at every convolution too -- buying more blocks before hitting this wall.
+
+======================================================================
+8. THE REAL COMPARISON -- ONE, TWO, AND THREE BLOCKS
+======================================================================
+
+--- OneBlockConvNetRGB (f1=3, hidden=8) ---
+shapes: {'out1': 28, 'pool1': 14, 'flat_dim': 588}
+parameters: 4832  untrained acc: 0.270 (chance=0.250)
+loss: epoch0=1.6090  final=0.0438
+train acc: 1.000  held-out test acc: 0.637
+
+--- TwoBlockConvNetRGB (f1=3, f2=6, hidden=8) ---
+shapes: {'out1': 28, 'pool1': 14, 'out2': 12, 'pool2': 6, 'flat_dim': 216}
+parameters: 2024  untrained acc: 0.250 (chance=0.250)
+loss: epoch0=1.7298  final=0.0955
+train acc: 1.000  held-out test acc: 0.850
+
+--- ThreeBlockConvNetRGB (f1=3, f2=6, f3=9, hidden=8) ---
+shapes: {'out1': 28, 'pool1': 14, 'out2': 12, 'pool2': 6, 'out3': 4, 'pool3': 2, 'flat_dim': 36}
+parameters: 1079  untrained acc: 0.225 (chance=0.250)
+loss: epoch0=1.8024  final=0.0368
+train acc: 1.000  held-out test acc: 0.512
+
+HEADLINE RESULT: params 4832 -> 2024 -> 1079 fell steadily (monotonic), but test accuracy went 0.637 -> 0.850 -> 0.512 -- NOT monotonic. Two blocks was the real sweet spot: it beat OneBlock on BOTH axes at once (fewer parameters AND higher accuracy), echoing Day 42's finding. Three blocks kept shedding parameters but gave back the entire accuracy gain and then some, landing below even OneBlock. All three memorized the training set perfectly (train acc 1.000/1.000/1.000), so this is not underfitting -- it is that pooling a 30x30 image down to a 2x2 feature map (Topic 7's pooling budget, one step before it becomes mechanically impossible) leaves too little spatial detail for the dense head to generalize from. Depth's benefit here had a ceiling, and today's honest numbers show exactly where it sat.
+saved depth_comparison.png
+saved depth_param_efficiency.png
+
+======================================================================
+9. WHAT THIS MAPS TO IN PYTORCH
+======================================================================
+from torchvision import transforms
+preprocess = transforms.Compose([
+    transforms.Resize((64, 64)),                     # PIL resize, Topic 1
+    transforms.RandomHorizontalFlip(),                # Topic 2
+    transforms.RandomCrop(48),                        # Topic 2
+    transforms.ColorJitter(brightness=0.35),          # Topic 2
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],  # Topic 1, per-channel
+                         std=[0.229, 0.224, 0.225]),
+])
+
+model = nn.Sequential(
+    nn.Conv2d(3, 3, 3), nn.ReLU(), nn.MaxPool2d(2, 2),   # block 1
+    nn.Conv2d(3, 6, 3), nn.ReLU(), nn.MaxPool2d(2, 2),   # block 2
+    nn.Conv2d(6, 9, 3), nn.ReLU(), nn.MaxPool2d(2, 2),   # block 3
+    nn.Flatten(),
+    nn.Linear(9*2*2, 8), nn.Tanh(),
+    nn.Linear(8, 4),
+)
+nn.Conv2d(3, ...) as the FIRST layer's in_channels is the default in every real vision model, not a special case -- exactly what today's OneBlockConvNetRGB/TwoBlockConvNetRGB/ThreeBlockConvNetRGB hardcode by hand. Real architectures avoid the pooling-budget wall from Topic 7 with padding='same' inside nn.Conv2d.
+
+======================================================================
+Day 43 complete: real RGB photo preprocessing and augmentation verified on actual pixels, receptive field growth confirmed channel-count-independent for a third block, and a real three-way comparison showing depth's benefit has a ceiling -- two blocks beat one on both accuracy and parameter count, but a third block traded away the accuracy gain for a smaller model, exactly where the pooling budget got tight.
+======================================================================

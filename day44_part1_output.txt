@@ -1,0 +1,31 @@
+======================================================================
+1. 'SAME' PADDING FROM SCRATCH
+======================================================================
+no padding: input 10x10 -> conv(k=3) -> 8x8 (shrinks by 2, as always)
+pad=1: input 10x10 -> padded to 12x12 -> conv(k=3) -> 10x10 (matches the ORIGINAL input size, exactly what 'same' means)
+
+formula: pad = (k-1)//2 = (3-1)//2 = 1 for an odd kernel size k=3 -- confirmed to match the pad=1 used above.
+
+zero-padding check: the outermost ring of the padded input is exactly 0 -- Xp[0,0,0,:] sum = 0.000000, Xp[0,0,:,0] sum = 0.000000 (both should be 0.0, confirming np.pad added real zeros, not copied edge pixels).
+
+gradient check on padded conv's dW[1,0,1,1] (through relu -> dense -> softmax -> cross-entropy): numerical=0.087625, analytical=0.087625, diff=2.17e-08
+dX shape after cropping the pad back off: (2, 3, 10, 10) -- matches the ORIGINAL unpadded input shape (2, 3, 10, 10), confirming no gradient leaks into border pixels that were never real data.
+
+======================================================================
+2. BREAKING THE WALL -- A FOURTH BLOCK
+======================================================================
+Day 43's wall (NO padding, k=3): 30->28->14->12->6->4->2, then a 4th conv computes 2-3+1=0 -- invalid.
+
+With 'same' padding (pad=1), every conv OUTPUT equals its INPUT size -- only pooling shrinks the map now:
+  block 1: input 30x30 -> conv(k=3,pad=1) -> 30x30 (SAME) -> pool(2x2) -> 15x15
+  block 2: input 15x15 -> conv(k=3,pad=1) -> 15x15 (SAME) -> pool(2x2) -> 7x7
+  block 3: input 7x7 -> conv(k=3,pad=1) -> 7x7 (SAME) -> pool(2x2) -> 3x3
+  block 4: input 3x3 -> conv(k=3,pad=1) -> 3x3 (SAME) -> pool(2x2) -> 1x1
+  block 5: input 1x1 -> conv(k=3,pad=1) -> 1x1 (SAME) -> pool(2x2) -> 0x0
+  *** block 5's POOLING step hit 0x0 -- padding fixed the CONV wall, but pooling alone still has its own limit. ***
+
+real, honest finding: 'same' padding lets convolution run forever without shrinking -- but 2x2 pooling still halves the map every block, so a DEEP ENOUGH padded network still hits a 0x0 wall eventually. Padding moves the wall; it does not remove it.
+
+numeric check: a 1x1 feature map, padded (pad=1) to 3x3, conv(k=3) -> 1x1 (conv genuinely still works, SAME as its 1x1 input)
+...then pool(2x2) returned shape (1, 12, 0, 0) -- did NOT raise an exception.
+pool output shape (1, 12, 0, 0) has a ZERO spatial dimension -- the real, mechanical form THIS wall takes, confirming the honest prediction above with an actual function call, not just arithmetic on paper.

@@ -19,7 +19,7 @@ stack a SECOND conv+pool block on top of the first? Three things change:
 """
 import numpy as np
 import matplotlib
-matplotlib.use("Agg")
+
 import matplotlib.pyplot as plt
 
 np.random.seed(42)

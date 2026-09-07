@@ -1,0 +1,19 @@
+{
+  "saved_at_utc": "2026-08-14T19:00:39.743155+00:00",
+  "python_version": "3.14.2",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "sklearn_version": "1.9.0",
+  "xgboost_version": "3.4.0",
+  "joblib_version": "1.5.3",
+  "feature_columns": [
+    "Pclass",
+    "Sex",
+    "Age",
+    "SibSp",
+    "Parch",
+    "Fare",
+    "Embarked"
+  ],
+  "training_rows": 712,
+  "cv_accuracy_mean": 0.8147
+}

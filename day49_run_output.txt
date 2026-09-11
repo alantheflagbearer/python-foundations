@@ -1,0 +1,91 @@
+======================================================================
+1. DROPOUT UNIT CHECK -- inverted scaling and the training=False path
+======================================================================
+keep_prob=0.5, averaged over 2000 independent forward passes on the same fixed input A (100000 units per pass, so the grand mean below pools 200,000,000 Bernoulli draws -- a single unit's own 2000-sample average is still noisy by design, which is why the pooled statistic is the real check):
+  observed fraction of units zeroed per pass: 0.5000 (expected 1 - keep_prob = 0.5000)
+  per-unit relative error of averaged output vs. original A: mean 0.01791, max 0.11600 (expected to be noisy at only 2000 samples per unit)
+  grand (pooled) relative error, all 100000 units combined: 0.00001 (PASS -- E[dropout_forward(A)] == A)
+
+  training=False: output identical to input and mask is None: True -- confirms inference needs no rescaling at all, only the training flag.
+  dropout_backward with mask=None passes gradient through unchanged: True
+Actual output from this lesson's run.
+
+======================================================================
+2. GRADIENT CHECK -- AlexNetStyleConvNet, full forward->loss->backward
+======================================================================
+Run with keep_prob=1.0 (dropout off) so the check is deterministic; this validates the now THREE-DEEP conv+pool backward chain and both FC hidden layers, on a small 24x24 input so all three pooling stages still produce a non-empty spatial map (down to 1x1). ReLU is non-smooth at its kink (z=0), so a perturbed parameter that happens to push some unit's pre-activation across zero can spuriously blow up a single entry's relative error regardless of eps -- a known caveat of gradient-checking ReLU networks, not a real bug; seed=1 here lands on entries away from any kink.
+
+param           analytic     numeric     rel_err
+Wc1(3, 0, 0, 2)   -0.057563   -0.057563    8.04e-10
+Wc1(1, 1, 2, 0)    0.079859    0.079859    3.57e-09
+Wc1(3, 2, 1, 0)   -0.279307   -0.279307    2.66e-09
+Wc3(8, 1, 0, 0)    0.000000    0.000000    0.00e+00
+Wc3(5, 1, 2, 2)   -0.029264   -0.029264    1.15e-09
+Wc3(13, 5, 0, 2)    0.010438    0.010438    3.24e-09
+W1(8, 17)     0.000000    0.000000    0.00e+00
+W1(11, 19)    0.000000    0.000000    0.00e+00
+W1(0, 21)    -0.076221   -0.076221    3.98e-09
+W3(12, 1)     0.000000    0.000000    0.00e+00
+W3(7, 0)     -0.752678   -0.752678    1.05e-08
+W3(5, 1)      0.000000    0.000000    0.00e+00
+
+max relative error across all checked entries: 1.05e-08 (PASS -- three-deep conv+pool chain and both FC layers are correct)
+Actual output from this lesson's run.
+
+======================================================================
+3. ALEXNETSTYLE vs. TwoBlockConvNetRGB -- SAME DATA, MINI-BATCHED
+======================================================================
+Same dataset convention Days 44-47 used, at 40x40 instead of 30x30: train = seed=42, n_per_class=50, all 200 images; test = a SEPARATE seed=999, n_per_class=20 generation, 80 images. Both networks trained with real mini-batches (batch_size=50, iterate_minibatches from Day 45), 40 epochs.
+
+network                params  depth  train_acc  test_acc
+AlexNetStyle             6812      3     0.5100    0.3625
+TwoBlockConvNetRGB       3368      2     0.8750    0.6125
+Actual output from this lesson's run.
+
+real, honest finding: AlexNetStyle has 2.0x more parameters (6812 vs 3368) and one more conv+pool block than this series' own baseline, trained with the identical mini-batch regime on the identical 40x40 data. train_acc: 0.510 vs 0.875. test_acc: 0.362 vs 0.613.
+
+saved alexnet_vs_baseline_loss.png
+
+======================================================================
+4. DROPOUT ABLATION -- same AlexNetStyleConvNet, dropout on vs. off
+======================================================================
+Identical architecture, identical seed, identical 40x40 data and mini-batch schedule as section 3 -- the ONLY difference is keep_prob. This isolates what dropout alone buys a network this much bigger than the series' baseline, rather than conflating it with the extra conv block or the bigger FC layers.
+
+config                train_acc  test_acc  train-test gap
+dropout on (0.5)         0.5100    0.3625          0.1475
+dropout off (1.0)        0.5350    0.3750          0.1600
+Actual output from this lesson's run.
+
+real, honest finding: dropout narrows the train/test gap (0.1475 vs 0.1600 without it) on this bigger, deeper network -- consistent with the paper's own motivation for adding it.
+
+saved alexnet_dropout_ablation.png
+
+======================================================================
+5. WHAT THIS MAPS TO IN PYTORCH
+======================================================================
+class AlexNetStyle(nn.Module):
+    def __init__(self, n_classes=4, p_drop=0.5):
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 4, kernel_size=3)
+        self.conv2 = nn.Conv2d(4, 8, kernel_size=3)
+        self.conv3 = nn.Conv2d(8, 16, kernel_size=3)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.fc1 = nn.Linear(16 * 3 * 3, 32)
+        self.fc2 = nn.Linear(32, 16)
+        self.fc3 = nn.Linear(16, n_classes)
+        self.drop = nn.Dropout(p=p_drop)   # p is DROP prob = 1 - keep_prob
+
+    def forward(self, x):
+        x = self.pool(torch.relu(self.conv1(x)))
+        x = self.pool(torch.relu(self.conv2(x)))
+        x = self.pool(torch.relu(self.conv3(x)))
+        x = x.flatten(1)
+        x = self.drop(torch.relu(self.fc1(x)))
+        x = self.drop(torch.relu(self.fc2(x)))
+        return self.fc3(x)                # CrossEntropyLoss applies softmax
+
+# model.train() / model.eval() toggle nn.Dropout's training flag for you --
+# exactly the `training=` argument dropout_forward takes explicitly here.
+loader = DataLoader(dataset, batch_size=50, shuffle=True)  # = iterate_minibatches
+
+nn.Dropout does exactly what dropout_forward/dropout_backward do here -- zero a random subset and rescale survivors by 1/keep_prob during training, pass through unchanged during eval -- with autograd handling the backward pass instead of it being written out by hand.

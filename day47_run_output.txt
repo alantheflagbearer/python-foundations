@@ -1,0 +1,57 @@
+======================================================================
+1. GRADIENT CHECK -- LeNet5Style, full forward->loss->backward pipeline
+======================================================================
+Checked through the exact pipeline training actually uses (not an isolated test of avgpool alone), on a small 20x20 input so both conv+avgpool blocks still run.
+
+param           analytic     numeric     rel_err
+Wc1(3, 1, 4, 1)    0.012681    0.012681    3.86e-09
+Wc1(0, 2, 4, 4)   -0.059577   -0.059577    2.05e-09
+Wc1(1, 0, 0, 0)    0.012869    0.012869    1.60e-10
+W1(52, 4)    -0.007145   -0.007145    1.09e-09
+W1(48, 8)    -0.003750   -0.003750    1.82e-09
+W1(39, 49)   -0.007135   -0.007135    1.21e-09
+W3(28, 1)    -0.003388   -0.003388    9.99e-10
+W3(44, 2)    -0.015347   -0.015347    4.22e-09
+W3(68, 2)     0.028652    0.028652    1.19e-09
+
+max relative error across all checked entries: 4.22e-09 (PASS -- avgpool_forward/backward and the full pipeline are correct)
+Actual output from this lesson's run.
+
+======================================================================
+2. LENET5STYLE vs. TwoBlockConvNetRGB -- SAME DATA, SAME EPOCHS
+======================================================================
+Same dataset convention Days 44 and 46 used: train = seed=42, n_per_class=50, all 200 images; test = a SEPARATE seed=999, n_per_class=20 generation, 80 images. Both networks: lr=0.08, 400 full-batch epochs, identical seed=42 initialization scheme.
+
+network                params  train_acc  test_acc  noise 1st half  noise 2nd half
+LeNet5Style             44216     1.0000    0.7750         0.19680        0.000120
+TwoBlockConvNetRGB       2024     0.9950    0.7750         0.14482         0.23252
+Actual output from this lesson's run.
+
+real, honest finding: LeNet5Style has 21.8x more parameters (44216 vs 2024) than this series' own baseline. train_acc: 1.000 (LeNet5Style) vs. 0.995 (baseline). test_acc: 0.775 vs. 0.775 -- IDENTICAL, despite the huge parameter gap. This is not a claim that LeNet-5 is a bad architecture -- it was designed and validated on tens of thousands of MNIST digits, not 200 hand-generated images across 4 classes. 44216 parameters for 200 training examples is a much worse capacity-to-data ratio than 2024 parameters for the same 200 examples, and that mismatch shows up as a slightly wider train/test gap (0.225 vs. 0.220) from LeNet5Style's more complete training-set memorization -- extra capacity bought via historical fidelity here, not extra accuracy. Matching capacity to data size matters more than historical fidelity.
+
+a second, separate finding, visible directly in the loss plot: LeNet5Style is NOT smooth from the start -- it spikes to 2.81 at epoch 25 (noise_std=0.19680 over its first 200 epochs, comparable to the baseline's own 0.14482) -- but that instability is TRANSIENT: by the second half it has settled to near-total smoothness (noise_std=0.000120). The baseline's instability, by contrast, is PERSISTENT -- its second-half noise (0.23252) is actually higher than its first half, and visible spikes keep recurring all the way to epoch 400. Days 45 and 46 already documented this exact baseline network's real late-training oscillation at fixed lr=0.08 on this same dataset, so this isn't new -- but LeNet5Style's settling behavior is a real, different pattern worth naming: tanh saturates as weights grow during training (its gradient shrinks toward zero at both extremes), which naturally damps step-to-step movement over time in a way ReLU's unbounded activation does not. A network built from saturating activations can start rougher and finish smoother than one built from non-saturating ones, even at the same fixed learning rate.
+
+saved lenet_vs_baseline_loss.png
+
+======================================================================
+3. WHAT THIS MAPS TO IN PYTORCH
+======================================================================
+class LeNet5(nn.Module):
+    def __init__(self, n_classes=4):
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 6, kernel_size=5)
+        self.conv2 = nn.Conv2d(6, 16, kernel_size=5)
+        self.pool = nn.AvgPool2d(2, 2)      # matches avgpool_forward
+        self.fc1 = nn.Linear(16 * 4 * 4, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, n_classes)
+
+    def forward(self, x):
+        x = self.pool(torch.tanh(self.conv1(x)))
+        x = self.pool(torch.tanh(self.conv2(x)))
+        x = x.flatten(1)
+        x = torch.tanh(self.fc1(x))
+        x = torch.tanh(self.fc2(x))
+        return self.fc3(x)          # CrossEntropyLoss applies softmax
+
+nn.AvgPool2d does exactly what avgpool_forward/avgpool_backward do here -- mean over each window forward, an equal 1/(size*size) share of the output gradient to every input position backward -- just with autograd computing that backward pass instead of it being written out by hand.

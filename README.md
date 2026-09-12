@@ -2,7 +2,7 @@
 
 A daily-practice log following a 52-week (365-day) roadmap from Python fundamentals through classical ML, deep learning, and into applied AI. Most lessons don't just call a library function — they build the underlying idea (gradient descent, backprop, convolution, dropout...) from scratch in NumPy first, then show the framework equivalent. Each day is a self-contained script; from Week 1 onward, most days add a paired study guide (a concept walkthrough and a line-by-line syntax breakdown, both PDF).
 
-**Currently on Day 49** of 365. Full syllabus: [`full_syllabus_days_1_365.md`](full_syllabus_days_1_365.md).
+**Currently on Day 50** of 365. Full syllabus: [`full_syllabus_days_1_365.md`](full_syllabus_days_1_365.md).
 
 ## How this repo is organized
 
@@ -21,18 +21,18 @@ A daily-practice log following a 52-week (365-day) roadmap from Python fundament
 | 5 | 28–35 | Interpretability, Tuning & Deployment | [→ folder](week-05-interpretability-tuning-deployment) |
 | 6 | 36–41 | Neural Networks from Scratch | [→ folder](week-06-neural-networks-from-scratch) |
 | 7 | 42–48 | CNNs I & II | [→ folder](week-07-cnns-i-and-ii) |
-| 8 | 49 (of 49–55) | Classic CNN Architectures + Regularization — in progress | [→ folder](week-08-classic-cnn-architectures) |
+| 8 | 49–50 (of 49–55) | Classic CNN Architectures + Regularization — in progress | [→ folder](week-08-classic-cnn-architectures) |
 
 Weeks 9 onward (RNNs, attention, Transformers, tokenization, a mini-GPT, and much further — see the full syllabus) haven't been built yet.
 
-Starting with Week 6, the same small neural-network library — written entirely in NumPy, no framework — is extended week over week: the `net.forward()` / `net.backward()` core built on Day 36 is still what every later script, all the way through Day 49, trains against.
+Starting with Week 6, the same small neural-network library — written entirely in NumPy, no framework — is extended week over week: the `net.forward()` / `net.backward()` core built on Day 36 is still what every later script, all the way through Day 50, trains against.
 
 ## Recent visuals
 
 | | |
 |---|---|
 | ![LeNet-5 vs. baseline](week-07-cnns-i-and-ii/lenet_vs_baseline_loss.png) LeNet-5 vs. this series' baseline — Day 47 | ![Transfer strategies](week-07-cnns-i-and-ii/transfer_strategies_diagram.png) Five transfer-learning strategies compared — Day 48 |
-| ![AlexNetStyle vs. baseline](week-08-classic-cnn-architectures/alexnet_vs_baseline_loss.png) AlexNet-style vs. this series' baseline — Day 49 | ![Dropout ablation](week-08-classic-cnn-architectures/alexnet_dropout_ablation.png) Dropout on vs. off, same network — Day 49 |
+| ![AlexNetStyle vs. baseline](week-08-classic-cnn-architectures/alexnet_vs_baseline_loss.png) AlexNet-style vs. this series' baseline — Day 49 | ![Dropout regularization comparison](week-08-classic-cnn-architectures/dropout_regularization_comparison.png) Dropout ON vs. OFF, fully converged — Day 50 |
 
 ## Featured project: Titanic EDA (Day 13)
 

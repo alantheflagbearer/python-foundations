@@ -1,0 +1,42 @@
+======================================================================
+1. QUICK RE-VERIFICATION -- dropout math unchanged since Day 49
+======================================================================
+dropout_forward/dropout_backward and AlexNetStyleConvNet are reused verbatim from Day 49, where they were already verified by a 200-million-sample pooled statistical check and a full-pipeline gradient check (max relative error 1.05e-08). Re-running just the statistical check here as a fast confirmation nothing has drifted, rather than repeating the full derivation.
+
+grand (pooled) relative error, 100000 units x 2000 trials: 0.00001 (PASS)
+Actual output from this lesson's run.
+
+======================================================================
+2. REGULARIZED vs. UNREGULARIZED -- FULLY CONVERGED, 150 EPOCHS
+======================================================================
+Same dataset convention and architecture as Day 49 (40x40 images, train: seed=42, n_per_class=50, 200 images; test: SEPARATE seed=999, n_per_class=20, 80 images) -- but 150 epochs instead of 40, and lr=0.15 instead of 0.05, chosen so BOTH configurations actually finish converging instead of stopping partway through training. Train/test accuracy tracked every 10 epochs via train_with_history, not just once at the end.
+
+config                    train_acc  test_acc  train-test gap
+dropout ON (0.5)             0.8550    0.7125          0.1425
+dropout OFF (1.0)            1.0000    0.2875          0.7125
+Actual output from this lesson's run.
+
+real, honest finding: given enough training to actually converge, dropout OFF reaches train_acc=1.0000 (essentially perfect memorization of all 200 training images) while test_acc lands at only 0.2875 -- barely above the 0.25 a 4-class coin flip would get -- for a train/test gap of 0.7125. Dropout ON never lets the network fully memorize its training set (train_acc caps at 0.8550), but reaches test_acc=0.7125 -- 2.5x the unregularized run's -- for a gap of only 0.1425. This is the textbook regularized-vs-unregularized result Day 49's undertrained ablation couldn't yet show.
+
+a second finding, visible only because accuracy was tracked DURING training: the unregularized run's test_acc peaks at 0.3500 around epoch 40, then never improves on that again through epoch 149 even as train_acc keeps climbing toward 1.0 -- the overfitting signature an early-stopping rule (Day 38's own technique, on a toy network) would catch automatically. The regularized run's test_acc peaks at 0.7125 around epoch 110 and, because dropout keeps limiting how much the network can overfit, doesn't collapse away from that peak the way the unregularized run's does.
+
+saved dropout_regularization_comparison.png
+
+======================================================================
+3. WHAT THIS MAPS TO IN PYTORCH
+======================================================================
+best_test_acc = 0.0
+for epoch in range(epochs):
+    model.train()
+    for xb, yb in loader:               # = iterate_minibatches
+        ...                              # forward, loss, backward, step
+    if epoch % eval_every == 0:
+        model.eval()
+        with torch.no_grad():
+            test_acc = accuracy(model, test_loader)
+        if test_acc > best_test_acc:
+            best_test_acc = test_acc
+            torch.save(model.state_dict(), 'best_model.pt')  # checkpoint
+
+
+train_with_history's epoch-interval evaluation loop is exactly the scaffolding a real PyTorch training script wraps around checkpointing: save the model's weights whenever test/validation accuracy improves, so training can run past its best epoch (as the unregularized run here does) without losing the best checkpoint it ever produced -- the practical, automated version of eyeballing a train/test accuracy plot for where to stop.

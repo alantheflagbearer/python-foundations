@@ -1,0 +1,20 @@
+# Force binary handling for file types that must never go through git's
+# CRLF autoconversion. Without this, files whose content happens not to
+# trip git's own binary-detection heuristic (some ReportLab-generated PDFs
+# lack a null byte in their first several KB) can get silently corrupted -
+# LF bytes rewritten to CRLF - on checkout when core.autocrlf=true, which
+# breaks internal byte-offset tables (PDF xref, PNG/JPEG chunk lengths,
+# pickled/joblib streams) in a way that isn't visible until something
+# tries to actually open the file.
+*.pdf -text -diff
+*.png -text -diff
+*.jpg -text -diff
+*.jpeg -text -diff
+*.gif -text -diff
+*.ico -text -diff
+*.pkl -text -diff
+*.joblib -text -diff
+*.db -text -diff
+*.xlsx -text -diff
+*.docx -text -diff
+*.pptx -text -diff

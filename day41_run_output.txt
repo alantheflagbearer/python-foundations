@@ -1,0 +1,91 @@
+======================================================================
+1. WHAT CONVOLUTION ACTUALLY COMPUTES
+======================================================================
+8x8 image with a vertical stripe (columns 3-4 set to 1.0).
+Vertical-edge kernel response: max |value| = 3.0000
+Horizontal-edge kernel response: max |value| = 0.0000
+The vertical kernel fires strongly on a vertical edge; the
+horizontal kernel produces exactly zero -- it's structurally
+blind to an edge running perpendicular to what it detects.
+
+Saved: edge_detection.png
+
+======================================================================
+2. PADDING AND STRIDE
+======================================================================
+H=8, k=3, pad=0, stride=1  ->  formula size=6, actual shape=6
+H=8, k=3, pad=1, stride=1  ->  formula size=8, actual shape=8
+H=8, k=3, pad=0, stride=2  ->  formula size=3, actual shape=3
+
+pad=1, stride=1 exactly preserves the input size (8 -> 8) --
+'same' padding. pad=0, stride=2 roughly halves it (8 -> 3),
+skipping every other position as the kernel slides.
+
+======================================================================
+3. FROM ONE FILTER TO MANY -- FEATURE MAPS
+======================================================================
+Input: 1 image, 8x8. Filters: 4, each 3x3.
+Output Z shape: (1, 4, 6, 6)  (1 image, 4 feature maps, 6x6 each)
+  feature map 0: min=-0.923  max=0.989
+  feature map 1: min=-0.320  max=0.000
+  feature map 2: min=-1.405  max=1.544
+  feature map 3: min=-1.287  max=0.000
+
+Saved: feature_maps.png
+
+======================================================================
+4. MAX POOLING
+======================================================================
+Before pooling (4x4):
+[[ 1.79  0.44  0.1  -1.86]
+ [-0.28 -0.35 -0.08 -0.63]
+ [-0.04 -0.48 -1.31  0.88]
+ [ 0.88  1.71  0.05 -0.4 ]]
+After 2x2, stride-2 max pooling (2x2):
+[[1.79 0.1 ]
+ [1.71 0.88]]
+Shape: (4, 4) -> (2, 2)
+
+======================================================================
+5. THE STRIPE DATASET
+======================================================================
+X shape: (300, 8, 8)   y shape: (300,)
+  class 0 (vertical):   150 images
+  class 1 (horizontal): 150 images
+
+Saved: stripe_dataset.png
+
+======================================================================
+8. THE REAL TEST -- TRAINING CONVNET ON THE STRIPE DATASET
+======================================================================
+Untrained (random init) accuracy on training data: 0.500  (a 2-class problem, so 0.5 is pure chance)
+Epoch 0:   loss=0.8097
+Epoch 50:  loss=0.0759
+Epoch 199: loss=0.0123
+Final training accuracy: 1.000
+Held-out test accuracy (fresh images, seed=999, never seen during training): 1.000
+This is a genuine generalization check, not just a memorization
+check -- the test images were generated with a different seed
+and never appear anywhere in the training loop above.
+
+Saved: training_curve.png
+
+======================================================================
+WHAT THIS MAPS TO IN PYTORCH
+======================================================================
+nn.Conv2d(in_channels=1, out_channels=4, kernel_size=3)
+  # replaces conv2d_forward/conv2d_backward -- weights + grad
+  # tracking handled automatically by autograd
+nn.MaxPool2d(kernel_size=2, stride=2)
+  # replaces maxpool_forward/maxpool_backward
+nn.ReLU()                                   # replaces relu/drelu
+
+A real PyTorch model strings these together in nn.Sequential,
+exactly in the order ConvNet.forward() calls them by hand above.
+
+======================================================================
+Day 41 complete. Convolution is one small, reusable idea (a sliding
+dot product) that lets a network exploit spatial structure instead
+of discarding it -- verified today on a real, honest task a flat
+dense layer could not see the point of nearly as directly.
+======================================================================

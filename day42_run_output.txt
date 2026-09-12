@@ -1,0 +1,73 @@
+======================================================================
+1. FROM SINGLE-CHANNEL TO MULTI-CHANNEL CONVOLUTION
+======================================================================
+input X: (2, 3, 7, 7) (m, C_in=3, H=7, W=7)
+filters W: (4, 3, 3, 3) (C_out=4, C_in=3, kH=3, kW=3)
+output Z: (2, 4, 5, 5) -- each output pixel now sums over ALL 3 input channels, not just 1
+
+gradient check (numerical vs analytical):
+  dW: numerical=3.531961  analytical=3.531961  diff=9.06e-11
+  db: numerical=-5.224665  analytical=-5.224665  diff=1.23e-10
+  dX: numerical=0.035003  analytical=0.035003  diff=5.28e-11
+all three match to 9+ decimal places -- backward pass confirmed correct before using it to train anything.
+
+======================================================================
+2. RECEPTIVE FIELD GROWTH -- WHY STACKING WORKS
+======================================================================
+formula: r_out = r_in + (k-1)*j_in,  j_out = j_in * stride
+one conv+pool block  -> receptive field = 4x4 pixels (16 pixels)
+two conv+pool blocks -> receptive field = 10x10 pixels (100 pixels)
+stacking a second block did not just add a fixed amount -- it grew the field of view by 84 pixels (6.25x larger area) from ONE extra conv+pool pair.
+
+numeric verification (perturb each input pixel, check if the top-left output unit reacts):
+  one block:  16 pixels react, spanning 4x4 -- matches formula's 4x4
+  two blocks: 100 pixels react, spanning 10x10 -- matches formula's 10x10
+saved receptive_field.png
+
+======================================================================
+3. THE JUNCTION DATASET
+======================================================================
+train set: (240, 16, 16), class counts [60, 60, 60, 60] (0=end/1arm, 1=corner/2arms, 2=tee/3arms, 3=cross/4arms)
+saved junction_dataset.png
+
+======================================================================
+6. THE REAL COMPARISON -- ONE BLOCK vs TWO BLOCKS
+======================================================================
+
+--- OneBlockConvNet (n_filters=3, hidden=8) ---
+parameters: 1250
+untrained accuracy: 0.254 (chance = 0.250)
+loss: epoch0=2.1887  epoch250=0.3304  final=0.1084
+train accuracy: 1.000  held-out test accuracy: 0.820
+
+--- TwoBlockConvNet (f1=3, f2=6, hidden=8) ---
+shapes: {'out1': 14, 'pool1': 7, 'out2': 5, 'pool2': 2, 'flat_dim': 24}
+parameters: 434
+untrained accuracy: 0.267 (chance = 0.250)
+loss: epoch0=1.9958  epoch250=0.4874  final=0.0979
+train accuracy: 0.996  held-out test accuracy: 0.820
+
+HEADLINE RESULT: both networks reach test accuracy 0.820 vs 0.820 -- essentially tied -- but TwoBlockConvNet does it with 434 parameters versus OneBlockConvNet's 1250: a 65.3% reduction. Stacking didn't buy extra accuracy here; it bought the SAME accuracy for far less capacity, because the first block's edge/arm features get reused by the second block instead of every combination being relearned from scratch in one giant dense layer.
+saved stacking_comparison.png
+saved param_efficiency.png
+
+======================================================================
+7. WHAT THIS MAPS TO IN PYTORCH
+======================================================================
+import torch.nn as nn
+model = nn.Sequential(
+    nn.Conv2d(in_channels=1, out_channels=3, kernel_size=3),
+    nn.ReLU(),
+    nn.MaxPool2d(kernel_size=2, stride=2),
+    nn.Conv2d(in_channels=3, out_channels=6, kernel_size=3),
+    nn.ReLU(),
+    nn.MaxPool2d(kernel_size=2, stride=2),
+    nn.Flatten(),
+    nn.Linear(6*2*2, 8), nn.Tanh(),
+    nn.Linear(8, 4),
+)
+nn.Conv2d's in_channels/out_channels ARE the C_in/C_out this script's conv2d_forward_mc handles by hand -- stacking layers in nn.Sequential is exactly stacking conv+pool blocks like OneBlockConvNet -> TwoBlockConvNet above, just with autograd computing the backward pass instead of conv2d_backward_mc.
+
+======================================================================
+Day 42 complete: multi-channel convolution verified by gradient check, receptive field growth verified numerically, and a real two-block ConvNet matched a one-block ConvNet's accuracy with 65%+ fewer parameters on a genuinely harder task.
+======================================================================

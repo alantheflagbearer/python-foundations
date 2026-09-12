@@ -1,0 +1,80 @@
+======================================================================
+1. SIGNAL PROPAGATION THROUGH AN UNTRAINED DEEP NETWORK
+======================================================================
+10 layers, 64 units each, tanh activation, random input -- no training.
+
+naive_small    layer stds: ['0.0776', '0.0062', '0.0005', '0.0000', '0.0000', '0.0000', '0.0000', '0.0000', '0.0000', '0.0000']
+naive_large    layer stds: ['0.9457', '0.9455', '0.9455', '0.9487', '0.9492', '0.9481', '0.9454', '0.9467', '0.9451', '0.9462']
+xavier         layer stds: ['0.6196', '0.4830', '0.3995', '0.3575', '0.3311', '0.3058', '0.2758', '0.2609', '0.2488', '0.2190']
+he             layer stds: ['0.7137', '0.6316', '0.5890', '0.5781', '0.5773', '0.5699', '0.5562', '0.5560', '0.5573', '0.5426']
+
+naive_small collapses to exactly 0.0000 by layer 4 -- the signal is dead.
+naive_large stays high (~0.95) but that's SATURATION, not health -- tanh
+is pinned near +-1, where its derivative is near zero.
+xavier and he decay far more gradually -- real, but far survivable.
+
+Saved: init_stats.png
+
+======================================================================
+2. BATCH NORMALIZATION FIXES THE SAME SIGNAL, REGARDLESS OF INIT
+======================================================================
+Same 10-layer, 64-unit, tanh setup -- batch norm applied before each
+layer's activation this time.
+
+naive_small WITHOUT batch norm: ['0.0776', '0.0062', '0.0005', '0.0000', '0.0000', '0.0000', '0.0000', '0.0000', '0.0000', '0.0000']
+naive_small WITH    batch norm: ['0.6297', '0.6313', '0.6341', '0.6341', '0.6350', '0.6360', '0.6363', '0.6352', '0.6357', '0.6333']
+
+naive_large WITHOUT batch norm: ['0.9457', '0.9455', '0.9455', '0.9487', '0.9492', '0.9481', '0.9454', '0.9467', '0.9451', '0.9462']
+naive_large WITH    batch norm: ['0.6300', '0.6319', '0.6348', '0.6347', '0.6356', '0.6366', '0.6369', '0.6359', '0.6363', '0.6339']
+
+With batch norm, BOTH the collapsed init and the saturated init settle
+to the same stable ~0.63 std at every layer -- batch norm makes the
+signal's health independent of the initialization choice.
+
+Saved: batchnorm_stats.png
+
+======================================================================
+3. THE REAL TEST -- TRAINING A 6-HIDDEN-LAYER NETWORK
+======================================================================
+Architecture: [2, 32, 32, 32, 32, 32, 32, 3]  (6 hidden layers of 32 units, 3-class output)
+
+naive_small    (no batch norm): loss[0]=1.0986  loss[299]=1.0986  accuracy=0.000
+naive_large    (no batch norm): loss[0]=7.0673  loss[299]=0.0003  accuracy=1.000
+xavier         (no batch norm): loss[0]=1.2886  loss[299]=0.0006  accuracy=1.000
+he             (no batch norm): loss[0]=1.7144  loss[299]=0.0024  accuracy=1.000
+
+naive_small    (+ batch norm) : loss[0]=1.1223  loss[299]=0.0511  accuracy=0.987
+naive_large    (+ batch norm) : loss[0]=4.8759  loss[299]=0.2295  accuracy=0.897
+
+naive_small's loss is frozen at exactly ln(3)=1.0986 for all 300 epochs --
+the network outputs a near-uniform 1/3 probability for every class on every
+input the whole time. Its accuracy number is NOT a sign of partial learning --
+it's an artifact of argmax breaking near-exact floating-point ties on a frozen,
+functionally dead network. Adding batch norm to the SAME init rescues it
+completely: loss drops to 0.0511 and accuracy becomes genuinely real.
+naive_large, by contrast, was never dead (just rough and unstable at the
+start) -- adding batch norm to it here does NOT clearly help within the same
+300-epoch budget (final loss 0.2295 vs 0.0003
+without batch norm) -- an honest reminder that batch norm's clearest win is
+rescuing a catastrophically bad init, not improving an already-working one.
+
+Saved: training_comparison.png
+
+======================================================================
+WHAT THIS MAPS TO IN PYTORCH
+======================================================================
+nn.init.xavier_uniform_(layer.weight)     # Xavier/Glorot, this lesson's 'xavier'
+nn.init.kaiming_normal_(layer.weight,
+                        nonlinearity='relu')  # He init, this lesson's 'he'
+nn.BatchNorm1d(num_features)               # drop-in layer, replaces the
+                                            # manual mu/var/xhat/gamma/beta code
+
+PyTorch's default Linear layer initialization is already a Kaiming-family
+scheme (not naive_small/naive_large) -- today's 'bad' initializations were
+deliberately hand-picked to be bad, not what any framework does by default.
+
+======================================================================
+Day 40 complete. Depth turns a merely suboptimal weight scale into a total
+training failure -- Xavier/He choose that scale systematically, and batch
+normalization removes the dependency on getting it right at all.
+======================================================================

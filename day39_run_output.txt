@@ -1,0 +1,78 @@
+======================================================================
+1. SOFTMAX
+======================================================================
+logits=[2.  1.  0.1]  ->  probs=[0.659  0.2424 0.0986]  (sum=1.000000)
+logits=[1. 1. 1.]  ->  probs=[0.3333 0.3333 0.3333]  (sum=1.000000)
+logits=[5. 1. 1.]  ->  probs=[0.9647 0.0177 0.0177]  (sum=1.000000)
+Every row sums to 1.0 regardless of the input scale -- softmax always
+produces a valid probability distribution over the K classes.
+
+======================================================================
+2. CATEGORICAL CROSS-ENTROPY AND ONE-HOT ENCODING
+======================================================================
+y = [0 2 1]
+one_hot(y) =
+[[1. 0. 0.]
+ [0. 0. 1.]
+ [0. 1. 0.]]
+Confident, correct predictions -> cross-entropy = 0.1446
+Unsure, still-technically-plausible predictions -> cross-entropy = 1.6094
+Same shape as Day 37's binary cross-entropy, generalized to K columns --
+one-hot encoding is what makes 'multiply by the true class only' work as a
+single vectorized sum instead of an if/elif per class.
+
+======================================================================
+3. THE MULTI-CLASS DATASET
+======================================================================
+X shape: (300, 2)   y shape: (300,)   classes: [0, 1, 2]
+  class 0: 100 points
+  class 1: 100 points
+  class 2: 100 points
+Saved: multiclass_dataset.png
+
+======================================================================
+4. FULL-BATCH TRAINING
+======================================================================
+Every epoch = 1 gradient update (the whole dataset at once)
+Epoch 0:   loss=0.4049
+Epoch 50:  loss=0.0295
+Epoch 299: loss=0.0087
+Final accuracy: 0.997
+
+======================================================================
+5. MINI-BATCH TRAINING
+======================================================================
+Every epoch = 10 gradient updates (300 points / batch_size 32, shuffled)
+Epoch 0:   loss=0.1068
+Epoch 50:  loss=0.0060
+Epoch 299: loss=0.0015
+Final accuracy: 1.000
+
+======================================================================
+6. FULL-BATCH VS MINI-BATCH, SIDE BY SIDE
+======================================================================
+Saved: batch_comparison.png
+Full-batch:   1 update/epoch  -> final loss 0.0087
+Mini-batch:  10 updates/epoch -> final loss 0.0015
+Same data, same architecture, same epoch budget -- mini-batch gets many more
+weight updates per epoch, which is the entire mechanical reason it can reach a
+lower loss in the same number of epochs.
+
+======================================================================
+WHAT THIS MAPS TO IN PYTORCH
+======================================================================
+loss_fn = nn.CrossEntropyLoss()   # takes RAW logits, not softmax output --
+                                  # it applies log-softmax internally
+loader = DataLoader(dataset, batch_size=32, shuffle=True)
+for X_batch, y_batch in loader:   # replaces the manual idx/permutation loop
+    ...
+
+PyTorch's nn.CrossEntropyLoss expects raw, un-softmaxed logits as input --
+passing already-softmaxed probabilities into it is a common bug, since it
+applies its own (numerically stabilized) log-softmax internally.
+
+======================================================================
+Day 39 complete. Softmax + cross-entropy generalize binary classification to
+any number of classes; mini-batching generalizes the update rule to datasets
+too large for one full-batch step -- neither changes the underlying math.
+======================================================================

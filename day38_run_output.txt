@@ -1,0 +1,70 @@
+======================================================================
+1. THE OVERFITTING PROBLEM
+======================================================================
+Train set: 20 points, Val set: 10 points
+Network: 64 hidden units -- deliberately oversized for 20 training points.
+
+Epoch 0:    train_loss=0.5921  val_loss=0.6889
+Epoch 500:  train_loss=0.2657  val_loss=0.2692
+Epoch 204: val_loss hits its BEST value = 0.2690
+Epoch 2999: train_loss=0.1737  val_loss=0.4515
+Final train accuracy: 0.900
+Final val accuracy:   0.900
+Train loss keeps falling toward 0 while val loss bottoms out early and
+climbs back up -- the network is memorizing the 20 training points instead
+of learning the underlying pattern.
+
+======================================================================
+2. L2 REGULARIZATION (WEIGHT DECAY)
+======================================================================
+lam=0.02 -- Epoch 2999: train_loss=0.3567  val_loss=0.3749
+Best val_loss=0.3587 at epoch 45
+Final train accuracy: 0.850
+Final val accuracy:   0.800
+Penalizing large weights keeps the decision boundary simpler, so val loss
+no longer climbs back up the way it did with no regularization.
+
+======================================================================
+3. DROPOUT
+======================================================================
+keep_prob=0.6 -- Epoch 2999: train_loss=0.2374  val_loss=0.3697
+Best val_loss=0.2624 at epoch 222
+Final train accuracy: 0.900
+Final val accuracy:   0.900
+Randomly zeroing 40% of hidden units each step forces the network to not
+rely on any single unit -- a different way of fighting the same problem.
+
+======================================================================
+4. EARLY STOPPING
+======================================================================
+Training stopped at epoch 405 (patience=200 epochs with no val_loss improvement)
+Best val_loss=0.2690 at epoch 204
+train_loss at stop=0.2668  val_loss at stop=0.2691
+Final train accuracy: 0.900
+Final val accuracy:   0.900
+No change to the loss function or the network at all -- just watching val
+loss and refusing to keep training once it stops paying off.
+
+======================================================================
+5. ALL THREE, SIDE BY SIDE
+======================================================================
+Saved: regularization_comparison.png
+Same network, same data, same 3000-epoch budget -- only the regularization
+strategy changes, and the val-loss curve tells the whole story.
+
+======================================================================
+WHAT THIS MAPS TO IN PYTORCH
+======================================================================
+nn.Dropout(p=0.4)                          # keep_prob=0.6 here
+optim.SGD(params, lr=0.5, weight_decay=0.02) # L2, same as lam=0.02 here
+# early stopping has no built-in class -- it's the same manual
+# best-val-loss-and-patience loop used in demo_early_stopping() above
+
+PyTorch's nn.Dropout automatically does nothing at eval time (net.eval()),
+the same on/off switch this script implements by hand with the
+`training=True/False` flag on forward().
+
+======================================================================
+Day 38 complete. A bigger network is not automatically a better one --
+regularization is what keeps capacity from turning into memorization.
+======================================================================

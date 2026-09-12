@@ -1,37 +1,38 @@
-# Python Foundations — 52-week Data Science → ML/AI roadmap
+# Roadmap to AI/ML using Python — From Scratch
 
-A daily-practice log following a 52-week (365-day) roadmap from Python fundamentals through classical ML, deep learning, and into applied AI. Each day is a self-contained script; later days add a paired study guide (concept walkthrough + line-by-line syntax breakdown, both PDF).
+A daily-practice log following a 52-week (365-day) roadmap from Python fundamentals through classical ML, deep learning, and into applied AI. Most lessons don't just call a library function — they build the underlying idea (gradient descent, backprop, convolution, dropout...) from scratch in NumPy first, then show the framework equivalent. Each day is a self-contained script; from Week 1 onward, most days add a paired study guide (a concept walkthrough and a line-by-line syntax breakdown, both PDF).
 
 **Currently on Day 49** of 365. Full syllabus: [`full_syllabus_days_1_365.md`](full_syllabus_days_1_365.md).
 
 ## How this repo is organized
 
-- `dayN_topic.py` — the script for day N, runnable on its own.
-- `study-guides/` — for days built with the paired-PDF workflow, a concept/study guide and a syntax walkthrough per day.
-- `pfdsNN.py` — short standalone practice/fundamentals drills, numbered independently of the daily roadmap.
-- Loose `.png` files are the plots each script produces when run.
+- **One folder per week** (`week-01-python-foundations/` … `week-08-classic-cnn-architectures/`) — each holds that week's scripts, study-guide PDFs, diagrams, and run outputs, plus its own `README.md` with a day-by-day index. Open a week's `README.md` first; it links to everything inside.
+- **`practice-drills/`** — short standalone Python-fundamentals exercises (`pfdsNN.py`), numbered independently of the daily roadmap.
+- Root-level `titanic.csv`, `titanic.db`, and `students.csv` are the shared datasets several early weeks use; each is also copied into every week folder whose scripts need it, so any single week folder runs standalone without reaching outside itself.
 
-## Progress so far
+## Week-by-week index
 
-| Weeks | Topics |
-|---|---|
-| 1–5 (Days 1–19) | Python fundamentals, NumPy/pandas/matplotlib, SQL, classical ML (trees, forests, cross-validation, ROC/AUC), first portfolio model |
-| 6–7 (Days 21–33) | Feature engineering pipelines, gradient boosting, imbalanced classes, XGBoost, ensembles, SHAP interpretability, partial dependence, hyperparameter search (random + Bayesian/Optuna), model persistence |
-| 7 (Days 34–35) | Deploying a persisted model behind a minimal FastAPI endpoint (Pydantic validation, startup-time loading); week 5 review |
-| 8+ (Days 36–46) | Neural networks from scratch — forward/backprop, loss functions and optimizers, regularization, weight init and batch norm, convolutional layers, deep CNN stacking, mini-batch gradient descent, learning-rate schedules (step decay, cosine annealing) |
-| 8+ (Days 47, 49) | Classic CNN architectures recreated from scratch — LeNet-5 (tanh, average pooling, 3 FC layers) and an AlexNet-style network (ReLU, 3 conv blocks, dropout, mini-batches), each honestly benchmarked against this series' own baseline conv net |
+| Week | Days | Topic | |
+|---|---|---|---|
+| 1 | 2–5 | Python Foundations | [→ folder](week-01-python-foundations) |
+| 2 | 6–14 | NumPy, Pandas, Statistics & SQL | [→ folder](week-02-numpy-pandas-statistics-sql) |
+| 3 | 15–20 | Intro to Machine Learning | [→ folder](week-03-intro-to-machine-learning) |
+| 4 | 21–27 | Feature Engineering & Boosting | [→ folder](week-04-feature-engineering-boosting) |
+| 5 | 28–35 | Interpretability, Tuning & Deployment | [→ folder](week-05-interpretability-tuning-deployment) |
+| 6 | 36–41 | Neural Networks from Scratch | [→ folder](week-06-neural-networks-from-scratch) |
+| 7 | 42–48 | CNNs I & II | [→ folder](week-07-cnns-i-and-ii) |
+| 8 | 49 (of 49–55) | Classic CNN Architectures + Regularization — in progress | [→ folder](week-08-classic-cnn-architectures) |
 
-Days 36 onward build a small neural-network library from scratch in NumPy (no framework), extending it week over week — the same `net.forward()` / `net.backward()` core from Day 36 is still what every later script trains against.
+Weeks 9 onward (RNNs, attention, Transformers, tokenization, a mini-GPT, and much further — see the full syllabus) haven't been built yet.
 
-## Recent visuals (Days 36–42)
+Starting with Week 6, the same small neural-network library — written entirely in NumPy, no framework — is extended week over week: the `net.forward()` / `net.backward()` core built on Day 36 is still what every later script, all the way through Day 49, trains against.
+
+## Recent visuals
 
 | | |
 |---|---|
-| ![Decision boundaries](decision_boundaries.png) Decision boundaries on toy datasets — Day 36 | ![Optimizer paths](optimizer_paths.png) Optimizer trajectories compared — Day 37 |
-| ![Batch norm stats](batchnorm_stats.png) Batch-norm activation statistics — Day 40 | ![Edge detection](edge_detection.png) Edge-detection kernels — Day 41 |
-| ![Feature maps](feature_maps.png) CNN feature maps — Day 41 | ![Stacking comparison](stacking_comparison.png) Accuracy vs. depth for stacked CNN layers — Day 42 |
-
-Study guides (concept walkthrough + syntax breakdown PDFs) for the most recent days live in [`study-guides/`](study-guides).
+| ![LeNet-5 vs. baseline](week-07-cnns-i-and-ii/lenet_vs_baseline_loss.png) LeNet-5 vs. this series' baseline — Day 47 | ![Transfer strategies](week-07-cnns-i-and-ii/transfer_strategies_diagram.png) Five transfer-learning strategies compared — Day 48 |
+| ![AlexNetStyle vs. baseline](week-08-classic-cnn-architectures/alexnet_vs_baseline_loss.png) AlexNet-style vs. this series' baseline — Day 49 | ![Dropout ablation](week-08-classic-cnn-architectures/alexnet_dropout_ablation.png) Dropout on vs. off, same network — Day 49 |
 
 ## Featured project: Titanic EDA (Day 13)
 
@@ -45,11 +46,11 @@ Answers one question: what determined who survived the Titanic disaster, and doe
 - Survival rate by class: 1st 63.0%, 2nd 47.3%, 3rd 24.2% (χ² = 102.9, p = 4.55e-23) — statistically significant.
 - Strongest correlate of `Survived` is `Pclass` (r = -0.34) — correlation, not causation: class is a proxy for cabin location and lifeboat access, not a direct cause.
 
-![Titanic EDA dashboard](day13_dashboard.png)
+![Titanic EDA dashboard](week-02-numpy-pandas-statistics-sql/day13_dashboard.png)
 
 Six panels: overall survival, survival by sex, survival by class, age distribution, log-scaled fare distribution, and the full correlation matrix.
 
-**SQL cross-check:** the same survival patterns are reproduced with raw SQL (`GROUP BY`, `CASE WHEN` fare-tier bucketing, and a `RANK()` window function for top fares per class) — see `day13_eda_portfolio.py`.
+**SQL cross-check:** the same survival patterns are reproduced with raw SQL (`GROUP BY`, `CASE WHEN` fare-tier bucketing, and a `RANK()` window function for top fares per class) — see [`day13_eda_portfolio.py`](week-02-numpy-pandas-statistics-sql/day13_eda_portfolio.py).
 
 ## What's next
 

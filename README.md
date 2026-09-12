@@ -2,7 +2,7 @@
 
 A daily-practice log following a 52-week (365-day) roadmap from Python fundamentals through classical ML, deep learning, and into applied AI. Each day is a self-contained script; later days add a paired study guide (concept walkthrough + line-by-line syntax breakdown, both PDF).
 
-**Currently on Day 49** of 365 (Day 48 — transfer learning — is still pending; Day 49 was built ahead of it by request). Full syllabus: [`full_syllabus_days_1_365.md`](full_syllabus_days_1_365.md).
+**Currently on Day 49** of 365. Full syllabus: [`full_syllabus_days_1_365.md`](full_syllabus_days_1_365.md).
 
 ## How this repo is organized
 
@@ -17,6 +17,7 @@ A daily-practice log following a 52-week (365-day) roadmap from Python fundament
 |---|---|
 | 1–5 (Days 1–19) | Python fundamentals, NumPy/pandas/matplotlib, SQL, classical ML (trees, forests, cross-validation, ROC/AUC), first portfolio model |
 | 6–7 (Days 21–33) | Feature engineering pipelines, gradient boosting, imbalanced classes, XGBoost, ensembles, SHAP interpretability, partial dependence, hyperparameter search (random + Bayesian/Optuna), model persistence |
+| 7 (Days 34–35) | Deploying a persisted model behind a minimal FastAPI endpoint (Pydantic validation, startup-time loading); week 5 review |
 | 8+ (Days 36–46) | Neural networks from scratch — forward/backprop, loss functions and optimizers, regularization, weight init and batch norm, convolutional layers, deep CNN stacking, mini-batch gradient descent, learning-rate schedules (step decay, cosine annealing) |
 | 8+ (Days 47, 49) | Classic CNN architectures recreated from scratch — LeNet-5 (tanh, average pooling, 3 FC layers) and an AlexNet-style network (ReLU, 3 conv blocks, dropout, mini-batches), each honestly benchmarked against this series' own baseline conv net |
 

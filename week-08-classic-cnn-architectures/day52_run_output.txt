@@ -1,0 +1,92 @@
+======================================================================
+1. RECEPTIVE FIELD AND PARAMETER COUNT -- ONE BLOCK, SAME C
+======================================================================
+One 5x5 conv (C->C) vs. two stacked 3x3 convs (C->C->C), same C:
+  C=8    one 5x5:   1600 params   two 3x3:   1152 params   savings: 28.0%
+  C=16   one 5x5:   6400 params   two 3x3:   4608 params   savings: 28.0%
+  C=32   one 5x5:  25600 params   two 3x3:  18432 params   savings: 28.0%
+
+receptive field check: one 5x5 conv covers a 5x5 input region per output pixel. Two stacked 3x3 convs (stride 1, no padding) ALSO cover exactly a 5x5 region -- verified directly below by shape-tracing both networks on the same input.
+
+LargeKernelConvNet: input 40x40 -> after conv1(5x5): 36x36 -> after pool1: 18x18
+VGGStyleConvNet:    input 40x40 -> after conv1a(3x3): 38x38 -> after conv1b(3x3): 36x36 -> after pool1: 18x18
+
+same post-conv spatial size (confirms matching 5x5 receptive field): True
+
+LargeKernelConvNet total params: 8572
+VGGStyleConvNet total params:    8332
+Actual output from this lesson's run.
+
+======================================================================
+2. GRADIENT CHECK -- VGGStyleConvNet, stacked 3x3 convs
+======================================================================
+Checks the full forward->loss->backward pipeline on a small 20x20 input so both stacked-conv blocks still produce a non-empty spatial map after pooling.
+
+param           analytic     numeric     rel_err
+Wc1a(0, 1, 1, 2)   -1.127244   -1.127244    6.17e-09
+Wc1a(2, 1, 0, 1)   -0.311710   -0.311710    4.82e-09
+Wc1b(0, 3, 1, 0)   -0.088795   -0.088795    2.48e-09
+Wc1b(3, 3, 2, 0)    0.118087    0.118087    7.45e-09
+Wc2a(3, 3, 1, 1)   -0.017069   -0.017069    4.65e-08
+Wc2a(0, 2, 2, 1)    0.220552    0.220552    8.71e-09
+Wc2b(0, 3, 1, 0)    0.009072    0.009072    2.58e-09
+Wc2b(3, 2, 2, 0)    0.000000    0.000000    0.00e+00
+W1(3, 4)      0.446495    0.446495    7.95e-09
+W1(5, 2)      0.156785    0.156785    7.27e-09
+W2(2, 2)      0.319827    0.319827    7.84e-09
+W2(4, 2)      0.369532    0.369532    6.68e-09
+
+max relative error across all checked entries: 4.65e-08 (PASS -- stacked-conv backward chain is correct)
+Actual output from this lesson's run.
+
+======================================================================
+3a. FIRST ATTEMPT -- Day 50/51's INHERITED lr=0.15
+======================================================================
+Same dataset convention and fully-converged training budget as Days 50-51 (150 epochs, lr=0.15, batch_size=50) -- no dropout, no weight regularization, so today's result is about kernel shape alone. This lr was tuned for Days 49-51's networks, which have at most 3 conv layers total -- VGGStyleConvNet has 4.
+
+network                params  train_acc  test_acc
+LargeKernelConvNet       8572     1.0000    0.3625
+VGGStyleConvNet          8332     0.2450    0.2500
+Actual output from this lesson's run.
+
+diagnosis -- fraction of each VGGStyle conv layer's pre-activations stuck <= 0 (dead under ReLU) after training:
+  Zc1a: 0.622
+  Zc1b: 0.874
+  Zc2a: 0.999
+  Zc2b: 0.999
+
+real, honest finding: at lr=0.15, LargeKernelConvNet trains fine (train_acc=1.000) but VGGStyleConvNet does NOT learn at all (train_acc=0.245, chance level for 4 classes) -- 99.9% of block 2's first conv layer is stuck producing negative pre-activations, permanently zeroing almost all of that layer's gradient under ReLU. VGGStyleConvNet has 4 stacked conv+ReLU layers to LargeKernelConvNet's 2 -- a learning rate tuned for the shallower network is too aggressive for the deeper one. This is not a smoothed-over failure -- it is a direct, real preview of exactly why Day 53 (residual connections) and Day 54 (batch norm in CNNs) exist: naively stacking more layers is not free.
+
+======================================================================
+3b. A FAIR REMATCH -- properly recalibrated lr, found by measuring dead units
+======================================================================
+A small lr sweep (not shown in full here) measured VGGStyle's own dead-unit fraction at several learning rates: lr=0.05 -> 83.8% dead, lr=0.03 -> 46.3% dead, lr=0.01 -> 24.9% dead. lr=0.03 was chosen as a reasonable middle ground -- low enough to let VGGStyle actually train, not so low that either network needs far more than 150 epochs to converge.
+
+network                params  train_acc  test_acc
+LargeKernelConvNet       8572     1.0000    0.7125
+VGGStyleConvNet          8332     1.0000    0.6000
+Actual output from this lesson's run.
+
+real, honest finding: once BOTH networks are given a learning rate their own depth can actually handle, both reach train_acc=1.000/1.000 -- fully converged -- but LargeKernelConvNet generalizes BETTER here: test_acc=0.713 (LargeKernel) vs. 0.600 (VGGStyle). VGGStyle still uses 8332 parameters, 2.8% fewer than LargeKernelConvNet's 8572, at the verified-identical 5x5 receptive field -- that parameter saving is real and confirmed -- but on THIS dataset, at THIS scale, fewer parameters and an extra non-linearity did not translate into better test accuracy. VGG's real-world advantage was demonstrated at ImageNet scale, with far more data and far deeper stacks (16-19 layers) than this lesson's 2-block, 200-image setting -- not evidence the underlying idea is wrong, but a reminder that an architectural advantage proven at one scale doesn't automatically transfer to every scale, the same lesson Day 47's LeNet-5 recreation and Day 49's AlexNet recreation both already taught with their own architectures.
+
+saved vgg_vs_large_kernel.png
+
+======================================================================
+4. WHAT THIS MAPS TO IN PYTORCH
+======================================================================
+class VGGStyleBlock(nn.Module):
+    def __init__(self, c_in, c_out):
+        super().__init__()
+        self.conv_a = nn.Conv2d(c_in, c_out, kernel_size=3)
+        self.conv_b = nn.Conv2d(c_out, c_out, kernel_size=3)
+        self.pool = nn.MaxPool2d(2, 2)
+
+    def forward(self, x):
+        x = torch.relu(self.conv_a(x))
+        x = torch.relu(self.conv_b(x))
+        return self.pool(x)   # ONE pool call, after BOTH convs
+
+# real VGG (VGG-16/19) stacks 2-4 such 3x3 convs per block, never
+# a single large kernel -- this is literally the paper's design rule.
+
+nn.Conv2d(kernel_size=3) called twice in a row, with a single pooling layer after both, is exactly VGGStyleConvNet's forward() above -- PyTorch's autograd computes the stacked backward pass automatically instead of it being chained out by hand through two conv2d_backward_mc calls per block.

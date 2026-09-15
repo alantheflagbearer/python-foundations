@@ -1,6 +1,6 @@
 # Week 8: Classic CNN Architectures + Regularization (Days 49–55)
 
-Continuing the "recreate a real historical architecture, honestly" thread from Days 47–48. Currently in progress — Days 49–53 are built; Days 54–55 (batch norm in CNNs and data-loading pipelines) are still ahead. See [`full_syllabus_days_1_365.md`](../full_syllabus_days_1_365.md) for what's planned.
+Continuing the "recreate a real historical architecture, honestly" thread from Days 47–48. Currently in progress — Days 49–54 are built; Day 55 (real image data pipeline efficiency) is still ahead. See [`full_syllabus_days_1_365.md`](../full_syllabus_days_1_365.md) for what's planned.
 
 ## Day 49 — AlexNet-style deeper CNN
 [`day49_alexnet_style_cnn.py`](day49_alexnet_style_cnn.py) — rebuilds AlexNet's (2012) defining ideas at this series' scale: ReLU throughout, a third stacked conv+pool block, two big dropout-regularized FC layers, on larger 40x40 images, trained with real mini-batches for the first time since Day 45's mechanism. New from-scratch code: a standalone inverted-dropout layer, verified by both a pooled statistical check and a full gradient check.
@@ -47,6 +47,15 @@ Two honest, non-tidy findings. First: thrown at Day 52's exact lr=0.15, **both**
 Study guide: [`day53_residual_connections_complete_guide.pdf`](day53_residual_connections_complete_guide.pdf) · Syntax walkthrough: [`day53_syntax_line_by_line.pdf`](day53_syntax_line_by_line.pdf) · [Run output](day53_run_output.txt)
 
 ![Plain vs. residual, both fail then a fair rematch](plain_vs_resnet.png)
+
+## Day 54 — Batch normalization in CNNs: BN alone beats BN+residual here
+[`day54_batchnorm_in_cnns.py`](day54_batchnorm_in_cnns.py) — Day 40's dense-layer batch norm extended to conv layers: normalize each *channel* using statistics pooled over the batch AND both spatial axes, with one learned gamma/beta per channel. Three networks are compared at Day 53's exact failing lr=0.15: `PlainDeepConvNet` (Day 53's control, redefined here), `PlainBNConvNet` (BN added after every conv, no residual), and `ResNetBNConvNet` (BN *and* residual shortcuts together — the real published ResNet basic block). The gradient check caught a real bug along the way: `dgamma`/`dbeta` initially came out scaled by the batch size too large, because they weren't divided by `m` the way every other parameter gradient in this codebase already is. A gradient-flow-by-depth diagnostic (all three networks given identical initial weights) shows BN changes gradient distribution far more dramatically than residual shortcuts alone did — BN-only's stem-to-deepest ratio (1.53) actually *exceeds* 1.0.
+
+Not the tidy "combine both fixes for the best result" story. At lr=0.15, `PlainDeepConvNet` still fails completely (train_acc=0.250, unchanged from Day 53). `PlainBNConvNet` — batch norm *alone*, no residual — not only trains but reaches train_acc=1.000/test_acc=0.975, the best result any network in this two-day arc has reached. `ResNetBNConvNet` (BN and residual together) trains too, but far more unevenly and to a lower ceiling (test_acc=0.738) — its trajectory visibly oscillates rather than climbing smoothly. Adding a raw, unnormalized identity shortcut on top of a normalized branch, right before the final ReLU, changed the distribution the next layer's batch norm had to renormalize; at this lesson's small scale, that combination trained less smoothly than batch norm by itself, not more — the same scale-dependence caveat Days 47, 49, 52, and 53 already taught with their own architectures.
+
+Study guide: [`day54_batchnorm_in_cnns_complete_guide.pdf`](day54_batchnorm_in_cnns_complete_guide.pdf) · Syntax walkthrough: [`day54_syntax_line_by_line.pdf`](day54_syntax_line_by_line.pdf) · [Run output](day54_run_output.txt)
+
+![Plain vs. BN vs. BN+residual at the same failing lr](batchnorm_vs_plain_vs_resnet.png)
 
 ---
 [← Back to main README](../README.md)

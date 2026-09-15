@@ -1,0 +1,114 @@
+======================================================================
+1. GRADIENT CHECK -- ResNetStyleConvNet, identity-shortcut backward pass
+======================================================================
+Checks the full forward->loss->backward pipeline on a small 12x12 input, 2 residual blocks, so pooling still leaves a non-empty spatial map.
+
+param             analytic     numeric     rel_err
+Wstem(2, 0, 0, 1)    0.046613    0.046613    1.02e-07
+Wstem(0, 1, 0, 0)   -0.540977   -0.540977    5.82e-08
+block0_W1(2, 3, 0, 2)    0.179488    0.179488    4.40e-08
+block0_W1(0, 3, 2, 1)    0.112666    0.112666    1.32e-09
+block0_W2(1, 1, 2, 0)    0.450880    0.450880    5.89e-08
+block0_W2(0, 3, 2, 0)   -0.366059   -0.366059    5.85e-08
+block1_W1(1, 1, 1, 2)   -0.767049   -0.767049    3.94e-08
+block1_W1(3, 2, 1, 1)    0.189699    0.189699    5.65e-08
+block1_W2(1, 3, 2, 0)    0.199896    0.199896    7.76e-08
+block1_W2(3, 1, 1, 0)    1.210199    1.210199    6.14e-08
+W1fc(25, 5)       0.000000    0.000000    0.00e+00
+W1fc(15, 4)       0.390941    0.390940    4.02e-08
+W2fc(2, 1)        0.000000    0.000000    0.00e+00
+W2fc(0, 0)        0.000000    0.000000    0.00e+00
+
+max relative error across all checked entries: 1.02e-07 (PASS -- residual-block backward chain is correct)
+Actual output from this lesson's run.
+
+======================================================================
+2. GRADIENT FLOW BY DEPTH -- measured at initialization, before training
+======================================================================
+Day 52 diagnosed dying ReLUs AFTER training -- a downstream symptom. This measures the cause directly: the gradient norm reaching each conv layer's weights on a SINGLE forward+backward pass at initialization, deepest layer first. Both networks use the identical seed (and therefore identical initial weights), so any difference below is due to the shortcut connections alone.
+
+both networks start from identical initial weights: True
+
+layer (deepest first)       plain ||dW||   resnet ||dW||
+block2.W2                      15.053117        7.472742
+block2.W1                      20.450470        9.903194
+block1.W2                      20.776196       14.258992
+block1.W1                      10.851486       11.091479
+block0.W2                       3.888616        5.766880
+block0.W1                       4.234454        4.991802
+stem                            1.744730        3.104412
+Actual output from this lesson's run.
+
+stem-to-deepest-layer gradient ratio -- plain: 0.1159, resnet: 0.4154 (closer to 1.0 means gradient magnitude is preserved more evenly across depth; a ratio near 0 means the earliest layer's gradient has nearly vanished by the time it arrives, relative to the last block's).
+
+======================================================================
+3a. FIRST ATTEMPT -- lr=0.15, 7 conv layers deep
+======================================================================
+Day 52's inherited lr=0.15 already broke a 4-conv-layer network (VGGStyleConvNet). Today's PlainDeepConvNet and ResNetStyleConvNet both have 7 conv+ReLU layers (a stem plus 3 blocks of 2 convs each) -- nearly double that depth -- and both are trained at the SAME lr=0.15, same 150 epochs, same batch_size=50, same dataset convention as every prior day in this week. The only difference between the two networks is whether each block adds its input back before the final ReLU.
+
+network                params  train_acc  test_acc
+PlainDeepConvNet         7012     0.2500    0.2500
+ResNetStyleConvNet       7012     0.2500    0.2500
+Actual output from this lesson's run.
+
+diagnosis -- fraction of each block's second conv stuck <= 0 (dead under ReLU) after training:
+  block0.Zc2   plain: 1.000    resnet: 1.000
+  block1.Zc2   plain: 0.875    resnet: 1.000
+  block2.Zc2   plain: 1.000    resnet: 1.000
+Actual output from this lesson's run.
+
+real, honest finding: at lr=0.15, BOTH networks fail equally -- train_acc=0.250 for PlainDeepConvNet and train_acc=0.250 for ResNetStyleConvNet, both chance level for 4 classes. Residual connections did NOT rescue this learning rate on their own: block0 and block2 are 100% dead under ReLU in BOTH networks. The gradient-flow diagnosis above already explains why this isn't a contradiction -- ResNetStyleConvNet preserves MORE gradient magnitude at its earliest layer (ratio 0.415 vs. 0.116) than PlainDeepConvNet does, but 'more gradient than a network that has none' can still be an update step large enough to push units permanently negative. A shortcut connection changes how much gradient reaches early layers -- it does not change how large a step lr=0.15 takes once that gradient arrives.
+
+======================================================================
+3b. A SHORT LR SWEEP -- finding a learning rate this depth can handle
+======================================================================
+Day 52 calibrated lr by measuring dead-unit fraction across a small sweep. Today's network is deeper (7 conv layers vs. 4), so the sweep below checks a wider, lower range of candidate learning rates, training BOTH networks for a shorter 25-epoch budget just to see which ones let either network escape chance-level accuracy at all, before committing to a full 150-epoch run.
+
+lr         plain train_acc   resnet train_acc
+0.15                0.2500             0.2500
+0.05                0.3550             0.4050
+0.02                0.6000             0.5650
+0.008               0.5700             0.6000
+Actual output from this lesson's run.
+
+chosen lr for the full rematch: 0.008 (the candidate that gave ResNetStyleConvNet its best 25-epoch training accuracy in the sweep above).
+
+======================================================================
+3c. THE FULL REMATCH -- both networks, lr=0.008, 150 epochs
+======================================================================
+
+network                params  train_acc  test_acc
+PlainDeepConvNet         7012     1.0000    0.7375
+ResNetStyleConvNet       7012     1.0000    0.5625
+Actual output from this lesson's run.
+
+diagnosis at lr=0.008 -- fraction of each block's second conv stuck <= 0 (dead under ReLU) after training:
+  block0.Zc2   plain: 0.294    resnet: 0.336
+  block1.Zc2   plain: 0.296    resnet: 0.447
+  block2.Zc2   plain: 0.489    resnet: 0.508
+Actual output from this lesson's run.
+
+real, honest finding: at a properly calibrated lr=0.008, PlainDeepConvNet reaches train_acc=1.000/test_acc=0.738 while ResNetStyleConvNet reaches train_acc=1.000/test_acc=0.562 -- PlainDeepConvNet comes out ahead here. Both networks have IDENTICAL parameter counts (7012) -- the shortcut connections are completely free. The lesson isn't 'residual connections make any learning rate work' (stage 3a already showed that's false at this depth) -- it's that they measurably change how gradient magnitude is distributed across depth (section 2's diagnostic), which is a real, distinct effect from simply picking a better lr, even though calibrating the lr is still necessary either way.
+
+saved plain_vs_resnet.png
+
+======================================================================
+4. WHAT THIS MAPS TO IN PYTORCH
+======================================================================
+class ResidualBlock(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, padding=1)
+
+    def forward(self, x):
+        out = torch.relu(self.conv1(x))
+        out = self.conv2(out)          # no relu yet -- matches resblock_forward's z2
+        return torch.relu(out + x)      # add the shortcut, THEN relu
+
+# real ResNet (He et al., 2015) also adds a batch-norm layer after each
+# conv (that's Day 54's topic) and a learned 1x1-conv projection on the
+# shortcut whenever a block changes channel count or downsamples --
+# neither is needed here since every block in this lesson keeps C fixed.
+
+padding=1 on a 3x3 conv is PyTorch's built-in way of getting the spatial-size-preserving convolution that conv2d_forward_mc's new `pad` argument reproduces by hand above; `out + x` is autograd's version of resblock_backward's explicit dx_from_conv1 + dx_identity line.

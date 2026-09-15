@@ -1,6 +1,6 @@
 # Week 8: Classic CNN Architectures + Regularization (Days 49–55)
 
-Continuing the "recreate a real historical architecture, honestly" thread from Days 47–48. Currently in progress — Days 49–52 are built; Days 53–55 (residual connections, batch norm in CNNs, and data-loading pipelines) are still ahead. See [`full_syllabus_days_1_365.md`](../full_syllabus_days_1_365.md) for what's planned.
+Continuing the "recreate a real historical architecture, honestly" thread from Days 47–48. Currently in progress — Days 49–53 are built; Days 54–55 (batch norm in CNNs and data-loading pipelines) are still ahead. See [`full_syllabus_days_1_365.md`](../full_syllabus_days_1_365.md) for what's planned.
 
 ## Day 49 — AlexNet-style deeper CNN
 [`day49_alexnet_style_cnn.py`](day49_alexnet_style_cnn.py) — rebuilds AlexNet's (2012) defining ideas at this series' scale: ReLU throughout, a third stacked conv+pool block, two big dropout-regularized FC layers, on larger 40x40 images, trained with real mini-batches for the first time since Day 45's mechanism. New from-scratch code: a standalone inverted-dropout layer, verified by both a pooled statistical check and a full gradient check.
@@ -38,6 +38,15 @@ Two honest, non-tidy findings. First: trained at Day 50/51's inherited lr=0.15, 
 Study guide: [`day52_vgg_style_stacked_convs_complete_guide.pdf`](day52_vgg_style_stacked_convs_complete_guide.pdf) · Syntax walkthrough: [`day52_syntax_line_by_line.pdf`](day52_syntax_line_by_line.pdf) · [Run output](day52_run_output.txt)
 
 ![VGGStyle vs. LargeKernel](vgg_vs_large_kernel.png)
+
+## Day 53 — Residual connections: what they actually fix (and don't)
+[`day53_residual_connections.py`](day53_residual_connections.py) — Day 52 ended on a cliffhanger: a 4-conv-layer network failed completely at lr=0.15 from dying ReLUs. Today builds He et al.'s (2015) fix — an identity shortcut around each block, `out = ReLU(F(x) + x)` — and pushes depth further still: `PlainDeepConvNet` and `ResNetStyleConvNet` both stack 7 conv+ReLU layers (nearly double Day 52's deepest network), sharing identical parameter counts since shortcuts add zero parameters. A new diagnostic measures gradient norm by depth *at initialization* (both networks given identical starting weights): the earliest layer retains 41.5% of the deepest layer's gradient magnitude in the residual network vs. only 11.6% in the plain one — a real, measured effect. Starting today, `conv2d_forward_mc`/`backward_mc` are also rewritten from a per-output-pixel loop to a loop over kernel offsets (mathematically identical, ~4x faster), which is what kept this day's larger experiment tractable.
+
+Two honest, non-tidy findings. First: thrown at Day 52's exact lr=0.15, **both** networks fail completely (chance-level, 100% dead ReLUs in multiple blocks) — residual connections do not automatically rescue an overly-aggressive learning rate at this depth; more gradient reaching a layer isn't the same as a smaller update step once it arrives. Second: after a short lr sweep finds lr=0.008 and both networks are retrained for the full 150 epochs, `PlainDeepConvNet` actually generalizes *better* (test_acc=0.7375) than `ResNetStyleConvNet` (test_acc=0.5625) — despite the residual network's real, measured gradient-flow advantage and identical parameter count. A shortcut connection measurably changes how gradient is distributed across depth, which is real and worth understanding on its own terms, but that's a distinct effect from learning-rate calibration, and neither guarantees the more sophisticated architecture wins on a given dataset at a given scale.
+
+Study guide: [`day53_residual_connections_complete_guide.pdf`](day53_residual_connections_complete_guide.pdf) · Syntax walkthrough: [`day53_syntax_line_by_line.pdf`](day53_syntax_line_by_line.pdf) · [Run output](day53_run_output.txt)
+
+![Plain vs. residual, both fail then a fair rematch](plain_vs_resnet.png)
 
 ---
 [← Back to main README](../README.md)

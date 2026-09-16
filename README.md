@@ -2,7 +2,7 @@
 
 A daily-practice log following a 52-week (365-day) roadmap from Python fundamentals through classical ML, deep learning, and into applied AI. Most lessons don't just call a library function — they build the underlying idea (gradient descent, backprop, convolution, dropout...) from scratch in NumPy first, then show the framework equivalent. Each day is a self-contained script; from Week 1 onward, most days add a paired study guide (a concept walkthrough and a line-by-line syntax breakdown, both PDF).
 
-**Currently on Day 55** of 365. Full syllabus: [`full_syllabus_days_1_365.md`](full_syllabus_days_1_365.md).
+**Currently on Day 56** of 365. Full syllabus: [`full_syllabus_days_1_365.md`](full_syllabus_days_1_365.md).
 
 ## How this repo is organized
 
@@ -22,10 +22,11 @@ A daily-practice log following a 52-week (365-day) roadmap from Python fundament
 | 6 | 36–41 | Neural Networks from Scratch | [→ folder](week-06-neural-networks-from-scratch) |
 | 7 | 42–48 | CNNs I & II | [→ folder](week-07-cnns-i-and-ii) |
 | 8 | 49–55 | Classic CNN Architectures + Regularization | [→ folder](week-08-classic-cnn-architectures) |
+| 9 | 56–62 (of 56–62) | Sequence Data & RNNs I — in progress | [→ folder](week-09-sequence-data-rnns-i) |
 
-Weeks 9 onward (RNNs, attention, Transformers, tokenization, a mini-GPT, and much further — see the full syllabus) haven't been built yet. Starting Week 9, weeks whose theme is one major model get built as 6 daily parts plus a day-7 integration, rather than separate daily topics.
+Weeks 10 onward (LSTM/GRU, attention, Transformers, tokenization, a mini-GPT, and much further — see the full syllabus) haven't been built yet. Starting Week 9, weeks whose theme is one major model get built with a new two-track structure: Days 1–6 each add a short, lightweight exercise script alongside the usual full lesson, and Day 7 combines the six exercises into one final trained model.
 
-Starting with Week 6, the same small neural-network library — written entirely in NumPy, no framework — is extended week over week: the `net.forward()` / `net.backward()` core built on Day 36 is still what every later script, all the way through Day 55, trains against.
+Starting with Week 6, the same small neural-network library — written entirely in NumPy, no framework — is extended week over week: the `net.forward()` / `net.backward()` core built on Day 36 is still what every later script, all the way through Day 56, trains against.
 
 ## Recent visuals
 
@@ -35,6 +36,7 @@ Starting with Week 6, the same small neural-network library — written entirely
 | ![Dropout regularization comparison](week-08-classic-cnn-architectures/dropout_regularization_comparison.png) Dropout ON vs. OFF, fully converged — Day 50 | ![L1/L2 regularization sweep](week-08-classic-cnn-architectures/l1_l2_regularization_sweep.png) L1/L2 weight regularization sweep — Day 51 |
 | ![VGGStyle vs. LargeKernel](week-08-classic-cnn-architectures/vgg_vs_large_kernel.png) VGG-style stacked convs vs. one large kernel — Day 52 | ![Plain vs. residual](week-08-classic-cnn-architectures/plain_vs_resnet.png) Plain vs. residual connections, 7 conv layers deep — Day 53 |
 | ![Plain vs. BN vs. BN+residual](week-08-classic-cnn-architectures/batchnorm_vs_plain_vs_resnet.png) Batch norm alone beats BN+residual, same failing lr — Day 54 | ![Data loader throughput](week-08-classic-cnn-architectures/data_loader_throughput.png) In-memory vs. lazy-disk vs. prefetch loading — Day 55 |
+| ![Sequential data failure modes](week-09-sequence-data-rnns-i/sequential_failure_modes.png) No position invariance (FC) vs. a capped receptive field (Conv1D) — Day 56 | |
 
 ## Featured project: Titanic EDA (Day 13)
 

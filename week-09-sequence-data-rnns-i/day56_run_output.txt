@@ -1,0 +1,59 @@
+======================================================================
+1. GRADIENT CHECK -- Conv1DNet, global average pooling's backward pass
+======================================================================
+conv2d_forward_mc/backward_mc are unchanged and already verified (Day 53) -- this checks the one new ingredient: global average pooling's backward pass, embedded in the full Conv1DNet pipeline.
+
+param             analytic     numeric     rel_err
+Wc(0, 0, 0, 1)   -0.087497   -0.087497    5.03e-09
+Wc(1, 0, 0, 0)   -0.117464   -0.117464    5.08e-09
+Wc(0, 0, 0, 0)    0.051447    0.051447    8.40e-09
+W1(2, 0)       -0.108058   -0.108058    6.92e-09
+W1(1, 0)       -0.268046   -0.268046    5.74e-09
+W1(1, 0)       -0.268046   -0.268046    5.74e-09
+
+max relative error across all checked entries: 8.40e-09 (PASS -- Conv1DNet backward chain (incl. global average pooling) is correct)
+Actual output from this lesson's run.
+
+======================================================================
+2. THE FIXED-LENGTH LIMITATION -- no training needed to see this one
+======================================================================
+A dense network's first-layer weight matrix has a FIXED number of rows -- one per input position. It cannot even ACCEPT a sequence of a different length, regardless of how well trained it is. This is checked directly below, not asserted.
+
+ValueError raised, as expected: PlainFCNet was built for sequence length 30, but received length 20 -- a dense network's input size is fixed at construction time.
+
+Actual output from this lesson's run. A real sequential processor (an RNN, starting Day 57) applies the SAME small set of weights ONE TIMESTEP AT A TIME, so it naturally handles any sequence length without this restriction.
+
+======================================================================
+3. POSITION-GENERALIZATION FAILURE -- PlainFCNet, trained on positions 0-14, tested on 15-29
+======================================================================
+Same task (does the high spike come before the low spike?), same network -- only WHERE the two spikes are allowed to occur changes between train and test.
+
+train_acc (seen positions):            1.0000
+test_acc (seen positions, held out):    0.8875
+test_acc (SHIFTED positions 15-29):     0.5500
+Actual output from this lesson's run.
+
+real, honest finding: PlainFCNet reaches 1.000 train accuracy and 0.887 on held-out examples drawn from the SAME position range it trained on -- it has genuinely learned the order-detection rule for positions 0-14. But on the identical rule applied to positions 15-29, accuracy drops to 0.550 (chance level for 2 classes) -- W1's rows for positions 15-29 never received a meaningful training signal (those inputs were always near-zero noise during training), so the network has no learned detector there at all.
+
+======================================================================
+4. RECEPTIVE-FIELD CEILING -- Conv1DNet, near vs. far spike pairs
+======================================================================
+Same task, same STANDARD (non-shifted) train/test split this time -- spike positions are drawn from the FULL range for both train and test. What's measured instead is whether test accuracy differs between spike pairs within the kernel's own reach ('near') and pairs farther apart than it ('far').
+
+overall train_acc: 0.9100   overall test_acc: 0.8033
+Actual output from this lesson's run.
+
+test_acc on 'near' pairs (spike distance <= 5, n=96): 0.8854
+test_acc on 'far' pairs  (spike distance >  5, n=204): 0.7647
+Actual output from this lesson's run.
+
+real, honest finding: Conv1DNet's kernel (size 5) gives it weight-sharing translation invariance PlainFCNet never had -- but only within a 5-position window. On 'near' pairs it reaches 0.885 test accuracy, confirming it can detect within-window order directly. On 'far' pairs -- where no single filter position ever sees both spikes at once -- accuracy drops to 0.765, a real and repeatable gap (0.121), though NOT all the way down to chance (0.5). Global average pooling destroys WHICH position a channel's activation came from, so true joint order detection across a far-apart pair isn't directly possible -- but it doesn't destroy ABSOLUTE position information completely either: a spike near either end of the sequence appears in fewer sliding windows than one near the middle, so the pooled average still carries a faint, boundary-driven positional signal the network can partially exploit as an imperfect substitute for genuine relative-order detection. The receptive-field ceiling is real and measured here, just a softer one ('degraded', not 'destroyed') than the chance-level collapse Section 3 found for PlainFCNet.
+
+saved sequential_failure_modes.png
+
+======================================================================
+5. WHAT'S NEEDED INSTEAD
+======================================================================
+Both of today's networks look at the WHOLE sequence at once (via a fixed-size flatten, or a fixed-size window) and then either keep position-specific weights (PlainFCNet -- no invariance) or discard position entirely via pooling (Conv1DNet -- invariance, but a capped, local receptive field). What today's task actually needs is a network that walks through the sequence ONE STEP AT A TIME, carrying a running summary (a 'hidden state') FORWARD from every position to the next -- so information from position 2 is still available, in principle, when the network reaches position 29, no matter how far apart they are, and the SAME small set of weights is reused at every single timestep (so sequence length is no longer fixed at construction time either).
+
+That is exactly a Recurrent Neural Network (RNN) -- Day 57 builds its forward pass from scratch on a real toy sequence.

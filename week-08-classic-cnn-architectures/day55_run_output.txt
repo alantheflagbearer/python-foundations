@@ -1,0 +1,56 @@
+wrote 200 images to a temporary on-disk folder: C:\Users\alant\AppData\Local\Temp\day55_junction_images_efg8gzdu
+
+======================================================================
+1. BATCH-EQUIVALENCE CHECK -- do all 3 loaders agree?
+======================================================================
+Before trusting any timing or accuracy comparison built on these three loaders, this confirms they actually agree on WHAT DATA gets served: same shuffle order, same images, every batch, given the same seed.
+
+checked 10 batches across 3 loaders: all identical (idx, images, labels)
+Actual output from this lesson's run.
+
+======================================================================
+2. THROUGHPUT BENCHMARK -- real wall-clock time per loading strategy
+======================================================================
+Each batch is followed by a 10ms simulated training step (time.sleep, standing in for a real forward+backward pass) so the benchmark can test whether PrefetchDiskLoader actually hides disk-read time behind that compute, the way real DataLoader(num_workers>0) is supposed to. 5 epochs, batch_size=20.
+
+loader                  total time (s)   per-epoch (s)
+InMemoryLoader                   0.523           0.105
+LazyDiskLoader                   0.653           0.131
+PrefetchDiskLoader               0.536           0.107
+Actual output from this lesson's run.
+
+memory footprint -- InMemoryLoader: 7,680,000 bytes (whole dataset) vs. LazyDiskLoader/PrefetchDiskLoader: 768,000 bytes (one batch) -- 10.0x less memory held at once by the disk-based loaders, regardless of how large the underlying dataset grows.
+
+saved data_loader_throughput.png
+
+======================================================================
+3. TRAINING EQUIVALENCE -- does the loading strategy change what's learned?
+======================================================================
+Two IDENTICALLY-initialized TinyConvNet instances are trained for 30 epochs each -- one fed by InMemoryLoader, the other by LazyDiskLoader -- using the SAME weight-init seed AND the SAME shuffle seed. If the batch-equivalence check above is correct, both networks see the identical sequence of batches and should end up with IDENTICAL trained weights.
+
+max absolute weight difference (InMemory-trained vs. LazyDisk-trained network): 0.00e+00
+test accuracy -- InMemory-trained: 0.6625, LazyDisk-trained: 0.6625
+Actual output from this lesson's run.
+
+real, honest finding: the two networks are numerically identical after 30 epochs of training through two completely different data-loading code paths -- confirming a loader's job is to change HOW FAST data arrives and HOW MUCH memory it costs, never WHAT the model learns from it.
+
+======================================================================
+4. WHAT THIS MAPS TO IN PYTORCH
+======================================================================
+class JunctionImageDataset(torch.utils.data.Dataset):
+    def __init__(self, file_paths, labels):
+        self.file_paths, self.labels = file_paths, labels
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, i):              # called lazily, per-index, by the DataLoader
+        return np.load(self.file_paths[i]), self.labels[i]
+
+loader = torch.utils.data.DataLoader(
+    JunctionImageDataset(file_paths, labels),
+    batch_size=20, shuffle=True,            # replaces this lesson's rng.permutation() call
+    num_workers=4, prefetch_factor=2,       # replaces PrefetchDiskLoader's ONE background thread
+    pin_memory=True)                        # a GPU-specific optimization with no equivalent in this lesson
+
+__getitem__ is exactly LazyDiskLoader's _read_batch, called once per image instead of once per batch. num_workers>1 spreads PrefetchDiskLoader's single background thread across multiple PROCESSES (sidestepping Python's GIL, unlike this lesson's ThreadPoolExecutor), and prefetch_factor controls how many batches ahead each worker reads, generalizing this lesson's one-batch-ahead prefetch to N batches ahead.

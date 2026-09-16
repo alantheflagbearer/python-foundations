@@ -1,6 +1,6 @@
 # Week 8: Classic CNN Architectures + Regularization (Days 49–55)
 
-Continuing the "recreate a real historical architecture, honestly" thread from Days 47–48. Currently in progress — Days 49–54 are built; Day 55 (real image data pipeline efficiency) is still ahead. See [`full_syllabus_days_1_365.md`](../full_syllabus_days_1_365.md) for what's planned.
+Continuing the "recreate a real historical architecture, honestly" thread from Days 47–48. **Complete** — Days 49–55 are all built. See [`full_syllabus_days_1_365.md`](../full_syllabus_days_1_365.md) for what's next (Week 9 onward).
 
 ## Day 49 — AlexNet-style deeper CNN
 [`day49_alexnet_style_cnn.py`](day49_alexnet_style_cnn.py) — rebuilds AlexNet's (2012) defining ideas at this series' scale: ReLU throughout, a third stacked conv+pool block, two big dropout-regularized FC layers, on larger 40x40 images, trained with real mini-batches for the first time since Day 45's mechanism. New from-scratch code: a standalone inverted-dropout layer, verified by both a pooled statistical check and a full gradient check.
@@ -56,6 +56,15 @@ Not the tidy "combine both fixes for the best result" story. At lr=0.15, `PlainD
 Study guide: [`day54_batchnorm_in_cnns_complete_guide.pdf`](day54_batchnorm_in_cnns_complete_guide.pdf) · Syntax walkthrough: [`day54_syntax_line_by_line.pdf`](day54_syntax_line_by_line.pdf) · [Run output](day54_run_output.txt)
 
 ![Plain vs. BN vs. BN+residual at the same failing lr](batchnorm_vs_plain_vs_resnet.png)
+
+## Day 55 — Real image data pipeline efficiency: why "DataLoader" exists
+[`day55_data_pipeline_efficiency.py`](day55_data_pipeline_efficiency.py) — Days 49–54 all called `make_junction_dataset_rgb()` once and trained off one big in-memory array. Real datasets are usually thousands to millions of individual files on disk — too large for that. Today builds three from-scratch loading strategies against a REAL folder of image files: `InMemoryLoader` (loads everything up front, what every prior day did implicitly), `LazyDiskLoader` (stores only file paths, re-reads from disk on every single batch access, every epoch, no caching), and `PrefetchDiskLoader` (same lazy reads, but a background thread fetches the next batch while the current one trains). A batch-equivalence check — today's analogue of a gradient check — confirms all three serve bit-identical batches before any benchmark built on them is trusted.
+
+Real, measured tradeoffs: `LazyDiskLoader` is 25% slower per epoch than `InMemoryLoader` from genuine repeated disk I/O; one background thread in `PrefetchDiskLoader` recovers nearly all of that (down to just 2% slower) by overlapping I/O with compute — while using 10x less memory at once than `InMemoryLoader`, a ratio that only grows favorable as a dataset outgrows RAM. A real (not simulated) training run then confirms a small CNN reaches numerically *identical* final weights (max difference: 0.0) whether trained through `InMemoryLoader` or `LazyDiskLoader` — proof the loading strategy changes speed and memory, never what gets learned. Getting there honestly required one real fix: the lesson's small network first collapsed to chance accuracy at this series' usual lr=0.1–0.15 (its FC layer went 100% dead under ReLU, the same failure mode Days 52–54 found at deeper scale) — recalibrating to lr=0.02 fixed it.
+
+Study guide: [`day55_data_pipeline_efficiency_complete_guide.pdf`](day55_data_pipeline_efficiency_complete_guide.pdf) · Syntax walkthrough: [`day55_syntax_line_by_line.pdf`](day55_syntax_line_by_line.pdf) · [Run output](day55_run_output.txt)
+
+![Real wall-clock time per epoch, three loading strategies](data_loader_throughput.png)
 
 ---
 [← Back to main README](../README.md)

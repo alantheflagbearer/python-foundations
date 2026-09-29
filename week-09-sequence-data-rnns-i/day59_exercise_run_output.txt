@@ -1,0 +1,3 @@
+rho=0.5:  ||dh|| at last step 2.700e+01   10 steps back 2.997e-04   at step 0 1.411e-13   ratio 5.23e-15
+rho=1.0:  ||dh|| at last step 2.700e+01   10 steps back 1.914e-01   at step 0 1.699e-05   ratio 6.29e-07
+rho=3.0:  ||dh|| at last step 2.700e+01   10 steps back 6.228e+01   at step 0 1.081e+03   ratio 4.00e+01

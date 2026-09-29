@@ -35,5 +35,20 @@ Exercise: [`day58_exercise.py`](day58_exercise.py) adds `rnn_backward` to Day 57
 
 ![Both lengths train; training suppresses noise and latches spikes](bptt_training_short_vs_long.png)
 
+## Day 59 — Vanishing and exploding gradients: a real demonstration
+[`day59_vanishing_exploding_gradients.py`](day59_vanishing_exploding_gradients.py) — Day 58's task could be latched onto, so today uses one that can't: every input is N(0,1) and the label is just the sign of the *first* input, so gradient must reach step 0. A new probe records ∂L/∂hₜ at every timestep, gradient-checked first through the ∂L/∂xₜ it implies (max relative error 1.96e-08).
+
+- **Gradient vs. distance** (untrained, T=50, sweeping `Whh`'s spectral radius ρ): ~1e-22 of the gradient survives to step 0 at ρ=0.5; ~50,000× *more* arrives at ρ=3.0. The boundary isn't the textbook ρ=1 — with N(0,1) inputs gradient is preserved near ρ≈2, because each step also multiplies by tanh's slope; shrinking inputs so tanh stays linear moves the boundary back to ≈1.2.
+- **The real cost:** the RNN learns at T=2/5/10 (test ≈0.98–0.99) and fails at chance at T=20/40. The gradient ratio *at initialization* falls 0.91 → 0.54 → 0.21 → 0.018 → 0.00033; learning survives 0.21 and dies at 0.018. The failed networks never stored x₀ — flipping it moves the final state 5–14× *less* than resampling one irrelevant input. (A post-training ratio of 0.40 at T=40 looked healthy but was measured after `Whh` had drifted into the large-radius regime — the initialization measurement is the one that explains the failure.)
+- **Exploding during ordinary training**, default init, T=20: training pushes ρ from 1.25 to 2.85, crossing 2.0 at step 430; all 11 gradient spikes (up to 47× the median) fall in steps 406–868, ten after the crossing, and each jolts the loss 13× more than a typical step. From ρ=4, spikes reach 1,909 — ~4,000× the median. This run is Day 60's baseline for gradient clipping.
+
+Study guide: [`day59_vanishing_exploding_gradients_complete_guide.pdf`](day59_vanishing_exploding_gradients_complete_guide.pdf) · Syntax walkthrough: [`day59_syntax_line_by_line.pdf`](day59_syntax_line_by_line.pdf) · [Run output](day59_run_output.txt)
+
+Exercise: [`day59_exercise.py`](day59_exercise.py) adds one line to Day 58's BPTT loop — record ‖dh‖ at every step — and runs it at ρ = 0.5, 1.0, 3.0 ([run output](day59_exercise_run_output.txt)).
+
+![Gradient reaching earlier timesteps, by spectral radius](gradient_vs_distance.png)
+![Trainability vs. sequence length](trainability_vs_length.png)
+![Exploding gradients during training](exploding_during_training.png)
+
 ---
 [← Back to main README](../README.md)

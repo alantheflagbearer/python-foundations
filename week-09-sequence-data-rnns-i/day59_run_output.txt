@@ -1,0 +1,86 @@
+======================================================================
+1. VERIFYING THE PROBE -- does grad_by_timestep report true gradients?
+======================================================================
+Every result today is built on dL/dh_t. An intermediate hidden state can't be nudged directly, but an INPUT can -- and since h_t = tanh(x_t @ Wxh + ...), the probe implies dL/dx_t = (dL/dh_t * (1 - h_t^2)) @ Wxh^T. If that matches numeric central differences on every input at every timestep, the probe's dL/dh_t values are correct.
+
+checked 24 input entries (3 sequences x 8 timesteps)
+sample, example 0: t=0 analytic -8.473e-05 | t=7 analytic -7.495e-01
+max relative error: 1.96e-08 (PASS -- the probe reports true gradients)
+Actual output from this lesson's run.
+
+======================================================================
+2. GRADIENT VS. DISTANCE -- how much gradient reaches step 0 of a 50-step sequence?
+======================================================================
+Untrained networks, identical except for Whh's spectral radius rho. 200 sign-task sequences of length 50 (inputs N(0,1)). Reported: ||dL/dh_t|| at the last step (t=49) and further back, and the ratio reaching t=0.
+
+  rho   ||dh_49||   ||dh_40||   ||dh_25||    ||dh_0||   dh_0/dh_49
+  0.5   7.656e-02   7.815e-06   1.058e-12   5.690e-24     7.43e-23
+  0.9   8.180e-02   6.992e-04   1.413e-07   3.222e-13     3.94e-12
+  1.0   8.276e-02   1.462e-03   1.244e-06   1.674e-11     2.02e-10
+  1.5   8.568e-02   2.400e-02   1.072e-03   4.333e-05     5.06e-04
+  2.0   8.478e-02   9.862e-02   9.191e-02   2.874e-01     3.39e+00
+  3.0   8.483e-02   1.647e+00   5.082e+01   4.410e+03     5.20e+04
+Actual output from this lesson's run.
+
+Same networks, but every input scaled by 0.1 -- small inputs keep tanh near its linear region, where its slope (1 - h^2) is close to 1:
+
+  rho   dh_0/dh_49
+  0.9     2.74e-04
+  1.0     2.11e-02
+  1.2     2.92e+00
+  1.5     4.06e+01
+  2.0     1.09e+03
+Actual output from this lesson's run.
+
+saved gradient_vs_distance.png
+
+======================================================================
+3. THE REAL COST -- training the sign-of-first-input task at increasing T
+======================================================================
+Same network configuration and training budget at every length. Chance accuracy is 0.5. The gradient ratio ||dL/dh_0|| / ||dL/dh_{T-1}|| is measured on the test set twice: at initialization (where learning has to START) and after training.
+
+   T  train_acc  test_acc   ratio@init   ratio@end
+   2      1.000     0.990     9.07e-01    3.00e+00
+   5      1.000     0.980     5.39e-01    9.87e+00
+  10      1.000     0.990     2.08e-01    3.06e+01
+  20      0.678     0.495     1.79e-02    7.80e-03
+  40      0.627     0.502     3.29e-04    3.97e-01
+Actual output from this lesson's run.
+
+Did the failing networks store x_0 at all? For each, the final hidden state is compared after (a) flipping the sign of x_0 -- the ONLY input that matters -- versus (b) resampling one mid-sequence noise input, which should not matter. Also: the strongest correlation between any final hidden unit and the true label sign(x_0).
+
+   T   move from flipping x_0   move from resampling x_mid   max |corr| with label
+  20                    0.010                        0.140                   0.070
+  40                    0.057                        0.308                   0.107
+Actual output from this lesson's run.
+
+saved trainability_vs_length.png
+
+======================================================================
+4. EXPLODING GRADIENTS DURING ORDINARY TRAINING -- T=20, default init
+======================================================================
+The T=20 run from Section 3, re-run while recording the global gradient norm, the batch loss, and Whh's spectral radius at every one of its 3000 SGD steps. A 'spike' is any step whose gradient norm exceeds 10x the run's median.
+
+Whh spectral radius: 1.25 at init -> 2.20 at step 500 -> 2.85 at the end
+first step with radius > 2.0: 430
+gradient norm: median 0.663, max 31.4 (47x the median)
+spikes (> 10x median): 11, at steps [406, 491, 499, 589, 663, 679, 749, 756, 766, 865, 868]
+spikes while radius <= 2.0: 1   while radius > 2.0: 10
+|batch-loss change| per step: median 0.042, right after a spike 0.563
+Actual output from this lesson's run.
+
+How Whh's initial spectral radius changes it (same T=20 task, same training):
+
+  init rho  median gnorm   max gnorm  spikes  final rho
+     1.25*         0.663        31.4      11       2.85
+      3.00         0.416       148.1      40       7.33
+      4.00         0.476      1909.2      52      16.28
+(* = default initialization)
+Actual output from this lesson's run.
+
+saved exploding_during_training.png
+
+======================================================================
+5. WHAT DAY 60 TESTS
+======================================================================
+Two problems showed up at T=20, and they are not the same problem. Gradient reaching early timesteps VANISHES, so the dependency on x_0 is never learned. And the global gradient norm occasionally EXPLODES, jolting the weights. Gradient clipping -- capping the gradient's norm before each update -- is the standard fix for the second. Day 60 applies it to exactly Section 4's run and reports, honestly, what it does and doesn't fix.

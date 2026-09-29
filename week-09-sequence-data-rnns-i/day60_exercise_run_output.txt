@@ -1,0 +1,6 @@
+original global norm: 317.25
+global-norm clip at c=1000.0: new norm 317.2488  cosine 1.00000000  untouched: True
+global-norm clip at c=   5.0: new norm   5.0000  cosine 1.00000000  untouched: False
+value clip at +-0.5:        new norm   8.3296  cosine 0.78644377
+
+||dWhh|| / ||dWxh||: original 75.1, after global-norm clip 75.1, after value clip 4.8

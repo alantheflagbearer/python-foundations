@@ -1,0 +1,101 @@
+======================================================================
+1. CHECKING THE CLIPPER -- no-op below the threshold, exact norm and direction above it
+======================================================================
+Clipping introduces no new derivative, so there is nothing to gradient-check. What must be true instead: (a) below the threshold the gradient is returned unchanged; (b) above it the new global norm equals the threshold; (c) the direction is unchanged (cosine similarity 1). Element-wise value clipping is shown for contrast.
+
+raw gradient: 322 entries, global norm 1.2143
+
+ threshold c  norm after    scale     cosine  unchanged?
+     10.0000      1.2143   1.0000 1.00000000        True
+      2.4287      1.2143   1.0000 1.00000000        True
+      0.6072      0.6072   0.5000 1.00000000       False
+      0.1000      0.1000   0.0823 1.00000000       False
+Actual output from this lesson's run.
+
+contrast -- element-wise value clipping to [-limit, limit]:
+
+   limit  norm after     cosine  entries changed
+    0.05      0.6865   0.895447         134 of 322
+    0.01      0.1714   0.788184         273 of 322
+   0.002      0.0358   0.759369         318 of 322
+Actual output from this lesson's run.
+
+======================================================================
+2. BEFORE/AFTER -- Day 59's exact T=20 run, unclipped vs. clipped at c=1.0
+======================================================================
+Identical data, initialization, learning rate (0.05), epochs (150), batch size (30) and shuffling as Day 59. The ONLY difference is the clipping threshold. Test accuracy, Whh's spectral radius, and the gradient ratio reaching step 0 are recorded every 5 epochs -- Day 59 only looked at the end.
+
+consistency check -- unclipped final test accuracy 0.4950 (Day 59 reported 0.4950 for this exact run)
+
+  step | unclipped: test    rho     ratio |  clip=1.0: test    rho     ratio
+    20 |           0.575   1.27  3.42e-02 |           0.550   1.28  3.58e-02
+   220 |           0.517   1.35  6.50e-02 |           0.525   1.37  1.05e-01
+   420 |           0.757   1.95  2.86e+00 |           0.887   1.95  9.16e+00
+   620 |           0.762   2.48  3.22e+00 |           0.945   2.15  3.88e+01
+   820 |           0.925   2.92  1.09e+01 |           0.927   2.23  1.76e+01
+  1020 |           0.463   2.83  2.80e-04 |           0.953   2.27  2.24e+01
+  1220 |           0.472   2.83  3.13e-04 |           0.960   2.30  2.51e+01
+  1420 |           0.475   2.84  3.78e-04 |           0.963   2.33  2.00e+01
+  1620 |           0.470   2.84  4.60e-04 |           0.955   2.35  2.74e+01
+  1820 |           0.460   2.85  6.45e-04 |           0.950   2.38  4.45e+01
+  3000 |           0.495   2.85  7.80e-03 |           0.955   2.49  3.65e+01
+Actual output from this lesson's run.
+
+                           unclipped    clip=1.0
+peak test accuracy             0.927       0.968
+final test accuracy            0.495       0.955
+final train accuracy           0.678       0.993
+final spectral radius           2.85        2.49
+largest step taken             1.572       0.050
+steps clipped                   0.0%       33.5%
+Actual output from this lesson's run.
+
+the unclipped collapse: test accuracy 0.925 at step 820 -> 0.463 at step 920; the largest gradient in that window was 31.4 at step 865 (47x the run's median), and it was applied as a step of length 1.572
+Actual output from this lesson's run.
+
+saved clipping_before_after.png
+
+======================================================================
+3. HOW ROBUST? -- T=20, every clipping threshold
+======================================================================
+Same run as Section 2, sweeping the threshold c. Peak = best test accuracy at any evaluation; final = at the end of training.
+
+     c  peak test  final test  final rho
+  None      0.927       0.495       2.85
+   0.5      0.958       0.953       2.36
+   1.0      0.968       0.955       2.49
+   2.0      0.970       0.970       2.64
+   5.0      0.978       0.968       3.06
+  10.0      0.983       0.975       3.42
+Actual output from this lesson's run.
+
+======================================================================
+4. LARGER LEARNING RATES -- T=10, where Day 59's lr=0.05 run learned fine
+======================================================================
+A bigger learning rate means bigger steps, so exploding gradients do more damage. Each lr is trained unclipped and with c=1.0.
+
+    lr  unclipped final  clipped final  unclipped rho  clipped rho
+   0.2            0.688          0.990          11.61         2.93
+   0.5            0.487          0.995           9.60         5.16
+   1.0            0.545          0.963        1406.76        10.24
+Actual output from this lesson's run.
+
+======================================================================
+5. THE LIMIT -- T=40, every clipping threshold
+======================================================================
+Day 59's other failing length. Same sweep as Section 3.
+
+     c  peak test  final test  final rho
+  None      0.870       0.502       2.55
+   1.0      0.535       0.525       1.77
+   2.0      0.863       0.570       2.17
+   5.0      0.535       0.530       2.00
+  10.0      0.570       0.527       1.98
+Actual output from this lesson's run.
+
+saved clipping_limits.png
+
+======================================================================
+6. WHAT COMES NEXT
+======================================================================
+Clipping caps the length of a step; it cannot make a vanishing gradient larger. At T=20 that was enough, because the gradient reaching step 0 became healthy once training grew Whh's radius -- the danger was the crossing itself. At T=40 no threshold produced a network that learned and stayed learned. Fixing that needs a change to the recurrence itself, not to the optimizer: the LSTM's gated cell state (Day 63). Days 61-62 first put the vanilla RNN to work on real many-to-one and many-to-many tasks.

@@ -39,7 +39,7 @@ Exercise: [`day58_exercise.py`](day58_exercise.py) adds `rnn_backward` to Day 57
 [`day59_vanishing_exploding_gradients.py`](day59_vanishing_exploding_gradients.py) — Day 58's task could be latched onto, so today uses one that can't: every input is N(0,1) and the label is just the sign of the *first* input, so gradient must reach step 0. A new probe records ∂L/∂hₜ at every timestep, gradient-checked first through the ∂L/∂xₜ it implies (max relative error 1.96e-08).
 
 - **Gradient vs. distance** (untrained, T=50, sweeping `Whh`'s spectral radius ρ): ~1e-22 of the gradient survives to step 0 at ρ=0.5; ~50,000× *more* arrives at ρ=3.0. The boundary isn't the textbook ρ=1 — with N(0,1) inputs gradient is preserved near ρ≈2, because each step also multiplies by tanh's slope; shrinking inputs so tanh stays linear moves the boundary back to ≈1.2.
-- **The real cost:** the RNN learns at T=2/5/10 (test ≈0.98–0.99) and fails at chance at T=20/40. The gradient ratio *at initialization* falls 0.91 → 0.54 → 0.21 → 0.018 → 0.00033; learning survives 0.21 and dies at 0.018. The failed networks never stored x₀ — flipping it moves the final state 5–14× *less* than resampling one irrelevant input. (A post-training ratio of 0.40 at T=40 looked healthy but was measured after `Whh` had drifted into the large-radius regime — the initialization measurement is the one that explains the failure.)
+- **The real cost:** the RNN learns at T=2/5/10 (test ≈0.98–0.99) and fails at chance at T=20/40. The gradient ratio *at initialization* falls 0.91 → 0.54 → 0.21 → 0.018 → 0.00033; learning survives 0.21 and dies at 0.018. The failed networks never stored x₀ — flipping it moves the final state 5–14× *less* than resampling one irrelevant input. (A post-training ratio of 0.40 at T=40 looked healthy but was measured after `Whh` had drifted into the large-radius regime.) **⚠ Corrected by Day 60:** tracking accuracy *during* training showed the T=20 network actually learned the task (0.925) and was then destroyed by a single gradient spike at step 865 — so "vanishing gradients blocked learning" was the wrong conclusion for T=20; the collapse was an exploding-gradient event, and clipping fixes it. "Never stored x₀" describes only the final, damaged networks.
 - **Exploding during ordinary training**, default init, T=20: training pushes ρ from 1.25 to 2.85, crossing 2.0 at step 430; all 11 gradient spikes (up to 47× the median) fall in steps 406–868, ten after the crossing, and each jolts the loss 13× more than a typical step. From ρ=4, spikes reach 1,909 — ~4,000× the median. This run is Day 60's baseline for gradient clipping.
 
 Study guide: [`day59_vanishing_exploding_gradients_complete_guide.pdf`](day59_vanishing_exploding_gradients_complete_guide.pdf) · Syntax walkthrough: [`day59_syntax_line_by_line.pdf`](day59_syntax_line_by_line.pdf) · [Run output](day59_run_output.txt)
@@ -49,6 +49,23 @@ Exercise: [`day59_exercise.py`](day59_exercise.py) adds one line to Day 58's BPT
 ![Gradient reaching earlier timesteps, by spectral radius](gradient_vs_distance.png)
 ![Trainability vs. sequence length](trainability_vs_length.png)
 ![Exploding gradients during training](exploding_during_training.png)
+
+## Day 60 — Gradient clipping from scratch: an honest before/after on Day 59
+[`day60_gradient_clipping.py`](day60_gradient_clipping.py) — clipping by global norm: if the norm of *all* gradients together exceeds a threshold c, scale every one by the same factor c/‖g‖. Checked directly: an exact no-op below the threshold; above it the norm lands exactly on c with cosine similarity 1.00000000 to the original. Element-wise value clipping, for contrast, bends the direction (cosine 0.76–0.90).
+
+Day 59 predicted clipping would tame the spikes but *not* rescue its T=20 run, since clipping can't enlarge vanishing gradients. **That was wrong.** Re-running Day 59's exact run (unclipped reproduces its 0.4950 exactly) while tracking accuracy *during* training showed the network had **learned** — 0.925 at step 820 — until a single gradient of 31.4 (47× the median), applied at step 865 as a step of length 1.572, knocked it to 0.463 for good. Clipped at 1.0 (no step longer than 0.05), the same run finishes at **0.955**.
+- The rescue holds at every threshold from 0.5 to 10 (finals 0.953–0.975).
+- Clipping also makes 4–20× larger learning rates usable at T=10: unclipped runs end at 0.49–0.69 (with `Whh`'s spectral radius reaching 1,407 at lr=1.0), clipped at 0.96–0.995.
+- **Its limit:** at T=40 no threshold produces a network that learns *and stays learned* — the edge of what a vanilla RNN can train, and the motivation for the LSTM (Day 63).
+
+This also corrects Day 59: its T=20 failure was an exploding-gradient collapse, not vanishing gradients — visible only by watching training, not its end state. Day 59's guide now carries a red update box saying so.
+
+Study guide: [`day60_gradient_clipping_complete_guide.pdf`](day60_gradient_clipping_complete_guide.pdf) · Syntax walkthrough: [`day60_syntax_line_by_line.pdf`](day60_syntax_line_by_line.pdf) · [Run output](day60_run_output.txt)
+
+Exercise: [`day60_exercise.py`](day60_exercise.py) isolates the clipper and its checks, and shows value clipping squashing the recurrent gradient's relative size 15× while global-norm clipping preserves it exactly ([run output](day60_exercise_run_output.txt)).
+
+![Unclipped learns then collapses; clipped holds](clipping_before_after.png)
+![Clipping: robust at T=20, enables large lr at T=10, can't fix T=40](clipping_limits.png)
 
 ---
 [← Back to main README](../README.md)

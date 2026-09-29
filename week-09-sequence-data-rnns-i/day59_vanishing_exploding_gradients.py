@@ -39,6 +39,16 @@ Four real measurements, not assertions:
      in (2). This run is the baseline Day 60's gradient clipping will be
      tested against.
 
+UPDATE FROM DAY 60: re-running Section 5's exact T=20 run while tracking
+test accuracy every 5 epochs showed the network DID learn the task (0.925
+at step 820) before a single gradient spike at step 865 knocked it to
+0.463, where it stayed. So point 3's conclusion -- that vanishing
+gradients blocked learning at T=20 -- is wrong: vanishing slowed the
+start; an exploding-gradient spike caused the collapse. "Never stored
+x_0" describes only the final, already-damaged network. Gradient
+clipping rescues the run (see day60_gradient_clipping.py). This file's
+code and output are unchanged; only this interpretation is corrected.
+
 Every line of code below carries its own comment, continuing Day 52's
 convention.
 """

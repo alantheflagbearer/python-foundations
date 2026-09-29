@@ -13,5 +13,16 @@ Exercise: [`day56_exercise.py`](day56_exercise.py) isolates just the PlainFCNet 
 
 ![Two real failure modes: no position invariance vs. a capped receptive field](sequential_failure_modes.png)
 
+## Day 57 — Vanilla RNN forward pass from scratch on a real toy sequence
+[`day57_rnn_forward_pass.py`](day57_rnn_forward_pass.py) — builds the RNN recurrence `h_t = tanh(x_t @ Wxh + h_{t-1} @ Whh + bh)`, the same three parameters reused at every timestep. No backward pass yet (that's Day 58), so verification takes a different form: the looped implementation is checked against an explicit hand-unrolled computation (exact match), then the same untrained network is run forward on Day 56's task at three different sequence lengths (10, 20, 30) with zero errors — direct proof against Day 56's `PlainFCNet` `ValueError`.
+
+The headline result is a real, dramatic measurement: does information from position 0 survive to the final hidden state at long range, the way Conv1DNet's capped receptive field structurally couldn't? A finite-difference sensitivity check finds it starts at 0.70 (T=5), is still 0.44 at T=20 — then collapses to 0.000024 by T=40 and is *exactly* 0.0 by T=160 (float64 runs out of precision to represent it). There's no hard structural cutoff like Conv1DNet's kernel size, but the connection collapses in practice anyway — a forward-pass-only preview of Day 59's real topic (vanishing/exploding gradients), visible before backpropagation is even built.
+
+Study guide: [`day57_rnn_forward_pass_complete_guide.pdf`](day57_rnn_forward_pass_complete_guide.pdf) · Syntax walkthrough: [`day57_syntax_line_by_line.pdf`](day57_syntax_line_by_line.pdf) · [Run output](day57_run_output.txt)
+
+Exercise: [`day57_exercise.py`](day57_exercise.py) isolates just the RNN cell (`rnn_step_forward`/`rnn_forward`) and its hand-unrolled correctness check ([run output](day57_exercise_run_output.txt)) — Day 58's exercise will backprop through exactly this function.
+
+![Does information from x_0 survive to h_T at long range?](rnn_long_range_sensitivity.png)
+
 ---
 [← Back to main README](../README.md)

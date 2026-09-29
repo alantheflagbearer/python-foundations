@@ -1,0 +1,42 @@
+======================================================================
+1. CORRECTNESS CHECK -- hand-unrolled recurrence vs. the loop implementation
+======================================================================
+No gradients exist yet today (that's Day 58), so today's verification is different: does rnn_forward's for-loop actually compute the same thing as writing out each timestep's equation by hand? Checked on a tiny 3-step example.
+
+max abs difference at each timestep: ['0.00e+00', '0.00e+00', '0.00e+00']
+overall max difference: 0.00e+00 (PASS -- loop and hand-unrolled recurrence agree exactly)
+Actual output from this lesson's run.
+
+======================================================================
+2. THE FIXED-LENGTH LIMITATION, GONE -- same weights, three sequence lengths
+======================================================================
+Day 56's PlainFCNet raised a ValueError the moment it saw a sequence length it wasn't built for. Today's RNN has NO sequence-length argument in its constructor at all -- it should just work at any length, checked directly below.
+T=10   forward pass succeeded, output shape (10, 2), probabilities sum to 1: True
+T=20   forward pass succeeded, output shape (10, 2), probabilities sum to 1: True
+T=30   forward pass succeeded, output shape (10, 2), probabilities sum to 1: True
+
+Actual output from this lesson's run. Same Wxh, Whh, bh, Why, by -- reused unchanged across all three lengths, something PlainFCNet could never do.
+
+======================================================================
+3. LONG-RANGE SENSITIVITY -- does x_0 still reach h_T at long range?
+======================================================================
+Conv1DNet (Day 56) had a HARD structural cap: a kernel of size k literally cannot combine information more than k positions apart. An RNN has no such hard cap -- h_T depends on h_{T-1}, which depends on h_{T-2}, ... all the way back to x_0, by construction. But does that CHAIN carry a meaningful amount of signal at long range, or does it fade out? Measured directly via a finite-difference perturbation of x_0, not assumed.
+
+T        |dh_T/dx_0| (finite diff)
+5                         0.703337
+10                        0.656980
+20                        0.440420
+40                        0.000024
+80                        0.000000
+160                       0.000000
+
+Actual output from this lesson's run.
+
+real, honest finding: sensitivity of the final hidden state to the VERY FIRST input starts at 0.703337 at T=5, is still 0.440420 at T=20 -- but by T=40 it has collapsed to 2.35e-05, and by T=160 it is exactly 0.0 (float64 has run out of precision to represent it at all). Unlike Conv1DNet, there is no hard cutoff distance beyond which x_0 provably cannot reach h_T -- the connection always exists structurally. But this measurement shows that connection collapsing in practice, not staying flat, well before backpropagation ever enters the picture -- a direct, forward-pass-only preview of Day 59's real topic: vanishing (or exploding) signal through repeated tanh and matrix-multiply steps.
+
+saved rnn_long_range_sensitivity.png
+
+======================================================================
+4. WHAT'S STILL MISSING
+======================================================================
+Today's RNN has never been trained -- every weight is exactly what random initialization produced, and Section 3 already shows that even the FORWARD pass alone can let long-range signal fade. Turning this into something that actually learns the order-detection task requires a backward pass: propagating gradient not just through one layer, but back through EVERY timestep, reusing the SAME Wxh/Whh/bh at each one (so their gradients must be ACCUMULATED across all T steps, not computed once). That algorithm is called backpropagation through time (BPTT) -- Day 58 derives and gradient-checks it from scratch.

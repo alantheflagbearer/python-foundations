@@ -1,0 +1,81 @@
+======================================================================
+1. GRADIENT CHECK -- BPTT vs. numeric central differences
+======================================================================
+Every backward pass in this series has been checked this way since Day 39. BPTT is the hardest one yet to get right: three of the five parameters (Wxh, Whh, bh) receive a contribution from EVERY timestep, and a single wrong index (h_t vs. h_{t-1}, or overwriting instead of accumulating) would silently break it. Checked on a small 6-step sequence so every timestep matters.
+
+param     index           analytic       numeric     rel_err
+Wxh       (0, 3)        0.00740539    0.00740539    8.70e-09
+Wxh       (0, 1)        0.00600723    0.00600723    1.44e-08
+Wxh       (0, 0)        0.00911978    0.00911978    2.17e-08
+Whh       (3, 1)        0.01986643    0.01986643    4.73e-09
+Whh       (1, 3)       -0.00869595   -0.00869595    1.06e-09
+Whh       (2, 0)        0.04972201    0.04972201    1.02e-08
+bh        (0,)         -0.13430024   -0.13430024    9.63e-09
+bh        (2,)          0.20738258    0.20738257    9.16e-09
+bh        (2,)          0.20738258    0.20738257    9.16e-09
+Why       (3, 1)       -0.15177114   -0.15177114    1.55e-08
+Why       (3, 1)       -0.15177114   -0.15177114    1.55e-08
+Why       (1, 1)       -0.08811112   -0.08811112    1.63e-08
+by        (1,)         -0.21781345   -0.21781345    1.10e-08
+by        (0,)          0.21781345    0.21781345    1.10e-08
+by        (0,)          0.21781345    0.21781345    1.10e-08
+
+max relative error across all checked entries: 2.17e-08 (PASS -- BPTT is correct)
+Actual output from this lesson's run.
+
+======================================================================
+2. DOES IT ACTUALLY LEARN? -- training on Day 56's task, T=10
+======================================================================
+A passed gradient check says the math is right. It doesn't say the network can actually solve anything. Day 56's order-detection task, at a short length (T=10) where Day 57 measured long-range sensitivity still healthy (0.66 at T=10), trained from scratch with BPTT for the first time.
+
+test_acc BEFORE training (random weights): 0.3950
+train_acc AFTER training:                   1.0000
+test_acc AFTER training:                    1.0000
+training loss: 0.7331 (epoch 0) -> 0.0004 (epoch 299)
+Actual output from this lesson's run.
+
+======================================================================
+3. THE SURPRISE -- the exact same training at T=40
+======================================================================
+Day 57 measured forward-pass sensitivity to x_0 collapsing to 0.000024 by T=40, and called it a preview of vanishing gradients. The natural prediction: an RNN should struggle to train at T=40. Tested directly -- identical network size, lr, epochs, and seed as Section 2, only the sequence length changes.
+
+train_acc AFTER training (T=40): 1.0000
+test_acc AFTER training (T=40):  0.9950
+training loss: 0.9365 (epoch 0) -> 0.0004 (epoch 299)
+Actual output from this lesson's run.
+
+test accuracy by memory distance (steps the first spike must be carried to the end):
+   0-9  steps: n=  9   test_acc=1.0000
+  10-19 steps: n= 43   test_acc=1.0000
+  20-29 steps: n= 58   test_acc=1.0000
+  30-39 steps: n= 90   test_acc=0.9889
+Actual output from this lesson's run.
+
+measure (h_T at T=40, x_0 perturbed)             untrained     trained
+small-signal: ||dh_T/dx_0||, eps=1e-3             0.020786    0.000021
+large-signal: ||h_T(+3 spike) - h_T(none)||       0.131794    1.582471
+
+trained network: 19.8% of final hidden units have |h| > 0.95; largest |eigenvalue| of Whh = 2.168
+Actual output from this lesson's run.
+
+real, honest finding: the prediction was wrong. T=40 trains to test_acc=0.995 -- and holds up even when the first spike must be carried 30-39 steps. Day 57's measurement wasn't false, it was measuring the wrong thing for THIS task: after training, sensitivity to a TINY nudge at x_0 actually DROPS (0.020786 -> 0.000021), while the effect of a full-size +3 spike at x_0 GROWS (0.132 -> 1.582). The network learned to ignore small noise and LATCH onto large spikes: 20% of its final hidden units sit pinned near tanh's +-1 limits, and Whh's largest eigenvalue (2.17) is above 1 -- which, with tanh bounding every unit, produces stable saturated memory states rather than explosion. A tiny-epsilon derivative is a LOCAL, linear measurement; latching is a large-signal, nonlinear effect it fundamentally cannot see. The caveat that matters for Day 59: this task is unusually latch-friendly (+-3 spikes over 0.3 noise, one binary fact to store). Vanishing gradients are real -- this task just happens to route around them.
+
+saved bptt_training_short_vs_long.png
+
+======================================================================
+4. WHAT THIS MAPS TO IN PYTORCH
+======================================================================
+class RNNClassifier(nn.Module):
+    def __init__(self, hidden_dim=16, n_classes=2):
+        super().__init__()
+        self.rnn = nn.RNN(input_size=1, hidden_size=hidden_dim,
+                          nonlinearity='tanh', batch_first=True)
+        self.out = nn.Linear(hidden_dim, n_classes)
+
+    def forward(self, x):              # x: (batch, T, 1)
+        H, h_last = self.rnn(x)        # H: every hidden state, h_last: the final one
+        return self.out(h_last[-1])    # many-to-one: classify from the last state
+
+loss.backward()   # autograd runs BPTT automatically -- the accumulate-
+                  # across-timesteps loop in rnn_backward() is exactly
+                  # what it does under the hood

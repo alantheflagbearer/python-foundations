@@ -1,0 +1,5 @@
+Wxh: all 3 entries checked
+Whh: all 9 entries checked
+bh: all 3 entries checked
+
+max relative error: 2.77e-10 (PASS)

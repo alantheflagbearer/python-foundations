@@ -24,5 +24,16 @@ Exercise: [`day57_exercise.py`](day57_exercise.py) isolates just the RNN cell (`
 
 ![Does information from x_0 survive to h_T at long range?](rnn_long_range_sensitivity.png)
 
+## Day 58 — RNN backward pass (BPTT) from scratch + gradient check
+[`day58_rnn_bptt.py`](day58_rnn_bptt.py) — backpropagation through time: ordinary backprop on the unrolled network, plus one rule — the same `Wxh`, `Whh`, `bh` are used at every timestep, so their gradients are *summed* across all of them, and gradient is handed from `h_t` back to `h_{t-1}` through the same `Whh`. A numeric gradient check passes on all five parameters (max relative error 2.17e-08). Trained on Day 56's task at T=10, the RNN goes from 0.395 test accuracy (random weights) to 1.000.
+
+Then a prediction that turned out to be wrong. Day 57's collapsing forward-pass sensitivity suggested T=40 should struggle — it doesn't: identical training reaches test_acc=0.995, holding 0.989 even when the first spike must be remembered 30–39 steps. The diagnosis, measured rather than guessed: after training, sensitivity to a *tiny* nudge at x₀ drops ~1000x, while the effect of a full-size +3 spike at x₀ grows ~12x. The network learned to ignore small noise and **latch** onto large spikes — ~20% of its final hidden units sit pinned near tanh's ±1, and `Whh`'s largest eigenvalue grew to 2.17, which tanh's bound turns into stable saturated memory rather than explosion. Day 57's tiny-epsilon derivative is a local, linear measurement; latching is a large-signal, nonlinear effect it can't see. Vanishing gradients are still real — this task just routes around them, which is why Day 59 needs one that doesn't.
+
+Study guide: [`day58_rnn_bptt_complete_guide.pdf`](day58_rnn_bptt_complete_guide.pdf) · Syntax walkthrough: [`day58_syntax_line_by_line.pdf`](day58_syntax_line_by_line.pdf) · [Run output](day58_run_output.txt)
+
+Exercise: [`day58_exercise.py`](day58_exercise.py) adds `rnn_backward` to Day 57's exercise cell and checks every single gradient entry numerically ([run output](day58_exercise_run_output.txt), max relative error 2.77e-10).
+
+![Both lengths train; training suppresses noise and latches spikes](bptt_training_short_vs_long.png)
+
 ---
 [← Back to main README](../README.md)
